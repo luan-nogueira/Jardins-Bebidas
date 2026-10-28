@@ -1,0 +1,514 @@
+@import "tailwindcss";
+
+/* O tema é sempre resolvido pra "claro" ou "escuro" no data-tema do <html>
+   (o script no <head> faz isso antes da primeira pintura), então o `dark:`
+   segue esse atributo em vez do prefers-color-scheme. */
+@custom-variant dark (&:where([data-tema="escuro"], [data-tema="escuro"] *));
+
+/* ---------------------------------------------------------------------------
+   Paleta Jardins Bebidas — tirada da logo
+   Laranja da letra + marrom do contorno + creme da espuma do chope.
+   (Os nomes "ouro" e "marrom" ficaram do sistema base; ouro = laranja aqui.)
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-ouro-50:  #fff6ed;
+  --color-ouro-100: #ffead5;
+  --color-ouro-200: #fed0aa;
+  --color-ouro-300: #fdae74;
+  --color-ouro-400: #fb853c;
+  --color-ouro-500: #f26a1b;
+  --color-ouro-600: #e3510f;
+  --color-ouro-700: #bc3c0f;
+  --color-ouro-800: #953114;
+  --color-ouro-900: #782a14;
+
+  --color-marrom-50:  #fbf5ef;
+  --color-marrom-100: #f3e3d3;
+  --color-marrom-200: #e5c6a8;
+  --color-marrom-300: #cf9f74;
+  --color-marrom-400: #b0764a;
+  --color-marrom-500: #8c5632;
+  --color-marrom-600: #6e3f22;
+  --color-marrom-700: #592f18;
+  --color-marrom-800: #4a230f;
+  --color-marrom-900: #331708;
+  --color-marrom-950: #1c0c04;
+
+  --color-creme:  #fdebd3;
+  --color-espuma: #fff8ec;
+  --color-chope:  #f6a623;
+  --color-laranja: #f26a1b;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  /* Curva de "mola" suave usada nas animações do app. */
+  --ease-mola: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Animações (classes animate-*). Todas desligam com "reduzir movimento"
+     do sistema — ver o fim do arquivo. */
+  --animate-entrar: entrar 0.45s var(--ease-mola) both;
+  --animate-aparecer: aparecer 0.3s ease-out both;
+  --animate-folha: folha 0.38s var(--ease-mola) both;
+  --animate-surgir: surgir 0.28s var(--ease-mola) both;
+  --animate-toast: toast 0.45s var(--ease-mola) both;
+  --animate-crescer-y: crescer-y 0.7s var(--ease-mola) both;
+  --animate-crescer-x: crescer-x 0.7s var(--ease-mola) both;
+  --animate-flutuar: flutuar 5s ease-in-out infinite;
+  --animate-pop: pop 0.35s var(--ease-mola);
+  --animate-respirar: respirar 8s ease-in-out infinite;
+  --animate-tremer: tremer 0.4s ease-in-out;
+
+  @keyframes respirar {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 0.85; transform: scale(1.12); }
+  }
+  /* Brinde do login: cada caneco vem do seu lado, bate no meio (55%),
+     volta um pouco com o tranco e assenta na pose da logo. */
+  @keyframes brinde-esq {
+    0%   { opacity: 0; transform: translateX(-70px) rotate(-20deg); }
+    20%  { opacity: 1; }
+    55%  { transform: translateX(5px) rotate(6deg); }
+    70%  { transform: translateX(-7px) rotate(-4deg); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes brinde-dir {
+    0%   { opacity: 0; transform: translateX(70px) rotate(20deg); }
+    20%  { opacity: 1; }
+    55%  { transform: translateX(-5px) rotate(-6deg); }
+    70%  { transform: translateX(7px) rotate(4deg); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes respingo {
+    0%   { opacity: 0; transform: translate(0, 0) scale(0.2); }
+    15%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+  }
+  @keyframes clarao {
+    0%   { opacity: 0.9; transform: scale(0.2); }
+    100% { opacity: 0; transform: scale(1.6); }
+  }
+  @keyframes tremer {
+    0%, 100% { transform: none; }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
+
+  @keyframes entrar {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes aparecer {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes folha {
+    from { opacity: 0.6; transform: translateY(100%); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes surgir {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes toast {
+    from { opacity: 0; transform: translateY(-16px) scale(0.96); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes crescer-y {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
+  @keyframes crescer-x {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes flutuar {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+}
+
+/* --- Tokens semânticos: tema claro --------------------------------------- */
+:root {
+  --fundo:       #f9f4ee;
+  --superficie:  #ffffff;
+  --superficie-2:#f6eee5;
+  --borda:       #ecdfd2;
+  --borda-forte: #d9c4b0;
+  --texto:       #2b160b;
+  --texto-suave: #765643;
+  --acento:      #e3510f;
+  --acento-claro:#f7802f;
+  --acento-texto:#ffffff;
+  --barra:       #4a230f;
+  --barra-2:     #2c1307;
+  --barra-texto: #fdebd3;
+
+  /* Sombras puxando pro marrom (sombra cinza fica "suja" no creme). */
+  --sombra-card:  0 1px 2px rgb(74 35 15 / 0.05), 0 4px 14px -6px rgb(74 35 15 / 0.08);
+  --sombra-alta:  0 2px 4px rgb(74 35 15 / 0.05), 0 14px 32px -12px rgb(74 35 15 / 0.22);
+  /* Estes dois seguem a cor de destaque escolhida em Aparência. */
+  --sombra-acento:0 1px 2px color-mix(in srgb, var(--acento) 30%, transparent),
+                  0 8px 20px -8px color-mix(in srgb, var(--acento) 55%, transparent);
+  --brilho-fundo: color-mix(in srgb, var(--acento) 7%, transparent);
+}
+
+/* --- Tokens semânticos: tema escuro -------------------------------------- */
+:root[data-tema="escuro"] {
+  --fundo:       #120a05;
+  --superficie:  #1d110a;
+  --superficie-2:#28180f;
+  --borda:       #36221a;
+  --borda-forte: #563828;
+  --texto:       #fbefe4;
+  --texto-suave: #c9ae99;
+  --acento:      #f58a3c;
+  --acento-claro:#fbab68;
+  --acento-texto:#1c0c04;
+  --barra:       #1a0f08;
+  --barra-2:     #0e0703;
+  --barra-texto: #fdebd3;
+
+  --sombra-card:  inset 0 1px 0 rgb(255 255 255 / 0.03), 0 6px 20px -10px rgb(0 0 0 / 0.7);
+  --sombra-alta:  inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -14px rgb(0 0 0 / 0.85);
+}
+
+/* Antes do script rodar (ou com JS desligado), segue a preferência do SO. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) {
+    --fundo:       #120a05;
+    --superficie:  #1d110a;
+    --superficie-2:#28180f;
+    --borda:       #36221a;
+    --borda-forte: #563828;
+    --texto:       #fbefe4;
+    --texto-suave: #c9ae99;
+    --acento:      #f58a3c;
+    --acento-claro:#fbab68;
+    --acento-texto:#1c0c04;
+    --barra:       #1a0f08;
+    --barra-2:     #0e0703;
+    --barra-texto: #fdebd3;
+
+    --sombra-card:  inset 0 1px 0 rgb(255 255 255 / 0.03), 0 6px 20px -10px rgb(0 0 0 / 0.7);
+    --sombra-alta:  inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -14px rgb(0 0 0 / 0.85);
+  }
+}
+
+/* --- Estilo Grafite (Aparência) ------------------------------------------
+   Troca o creme/marrom da logo por neutros: branco e prata no claro, preto e
+   grafite no escuro. Não mexe no --acento — isso fica com a cor de destaque. */
+:root[data-paleta="grafite"]:not([data-tema="escuro"]) {
+  --fundo:       #f3f4f6;
+  --superficie:  #ffffff;
+  --superficie-2:#eceef1;
+  --borda:       #e1e4e8;
+  --borda-forte: #c6cbd2;
+  --texto:       #15171a;
+  --texto-suave: #5d646e;
+  --barra:       #212428;
+  --barra-2:     #0e1012;
+  --barra-texto: #eceef1;
+  --veu:         rgb(10 11 13 / 0.55);
+
+  --sombra-card:  0 1px 2px rgb(15 17 20 / 0.05), 0 4px 14px -6px rgb(15 17 20 / 0.08);
+  --sombra-alta:  0 2px 4px rgb(15 17 20 / 0.05), 0 14px 32px -12px rgb(15 17 20 / 0.22);
+}
+:root[data-tema="escuro"][data-paleta="grafite"] {
+  --fundo:       #0a0b0d;
+  --superficie:  #15171a;
+  --superficie-2:#1e2125;
+  --borda:       #2a2e33;
+  --borda-forte: #40454c;
+  --texto:       #f2f3f5;
+  --texto-suave: #a2a8b1;
+  --barra:       #131518;
+  --barra-2:     #060708;
+  --barra-texto: #e6e8eb;
+  --veu:         rgb(0 0 0 / 0.6);
+}
+
+/* --- Cor de destaque (Aparência) ----------------------------------------
+   Sem data-cor fica o laranja da logo. Cada cor tem a versão pro tema
+   escuro (mais clara, pra não sumir no fundo). A prata é grafite no claro
+   (prata em fundo branco não dá leitura) e prata de verdade no escuro. */
+:root[data-cor="chope"]  { --acento: #b8660a; --acento-claro: #e8971f; }
+:root[data-cor="prata"]  { --acento: #363b42; --acento-claro: #6b727c; --acento-texto: #ffffff; }
+
+:root[data-tema="escuro"][data-cor="chope"]  { --acento: #f5b041; --acento-claro: #fbcd7a; }
+:root[data-tema="escuro"][data-cor="prata"]  { --acento: #c3c8cf; --acento-claro: #eef0f2; --acento-texto: #0a0b0d; }
+
+/* `inline` faz as utilitárias apontarem para a variável, e não copiarem
+   o valor — é o que deixa a troca de tema funcionar em tempo real. */
+@theme inline {
+  --color-fundo:       var(--fundo);
+  --color-superficie:  var(--superficie);
+  --color-superficie-2:var(--superficie-2);
+  --color-borda:       var(--borda);
+  --color-borda-forte: var(--borda-forte);
+  --color-texto:       var(--texto);
+  --color-texto-suave: var(--texto-suave);
+  --color-acento:      var(--acento);
+  --color-acento-claro:var(--acento-claro);
+  --color-acento-texto:var(--acento-texto);
+  --color-barra:       var(--barra);
+  --color-barra-texto: var(--barra-texto);
+  --color-veu:         var(--veu);
+
+  --shadow-card:   var(--sombra-card);
+  --shadow-alta:   var(--sombra-alta);
+  --shadow-acento: var(--sombra-acento);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    color-scheme: light;
+  }
+  html[data-tema="escuro"] {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--fundo);
+    /* Um brilho laranja bem leve no alto da tela tira a cara de "chapado". */
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      var(--brilho-fundo),
+      transparent 70%
+    );
+    background-attachment: fixed;
+    color: var(--texto);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Respeita a área segura do iPhone (notch e barra inferior). */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  /* Contorno de foco só pra quem navega no teclado. */
+  :focus-visible {
+    outline: 2px solid var(--acento);
+    outline-offset: 2px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+
+  /* Barra de rolagem fininha no computador. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--borda-forte) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--borda-forte);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* No iPhone o campo de data tem largura mínima própria e ignora
+     w-full/min-w-0 — em grade de 2 colunas ele estourava pra fora da tela
+     (o "Até" aparecia cortado). Sem a aparência nativa ele obedece. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Some com as setinhas de <input type="number"> */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--acento) 30%, transparent);
+    color: var(--texto);
+  }
+}
+
+/* Definidos como @utility (e não em @layer components) porque no Tailwind v4
+   só uma utilitária pode ser usada dentro de @apply. */
+@utility card {
+  @apply rounded-2xl border border-borda bg-superficie shadow-card;
+}
+
+/* Cartão clicável: sobe um pouco e ganha sombra ao passar o mouse.
+   Usa `translate` (não `transform`), então combina com o active:scale. */
+@utility elevar {
+  @apply transition-[translate,box-shadow,border-color,background-color,scale]
+         duration-200 ease-mola;
+  @media (hover: hover) {
+    &:hover {
+      @apply -translate-y-0.5 shadow-alta;
+    }
+  }
+}
+
+@utility rotulo {
+  @apply mb-1.5 block text-[11px] font-bold tracking-[0.06em] text-texto-suave uppercase;
+}
+
+@utility campo {
+  @apply w-full rounded-xl border border-borda bg-superficie px-3 py-2.5
+         text-texto outline-none transition duration-200
+         shadow-[inset_0_1px_2px_rgb(0_0_0/0.04)]
+         placeholder:text-texto-suave/60
+         hover:border-borda-forte
+         focus:border-acento focus:ring-4 focus:ring-acento/15;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+         text-sm font-semibold select-none
+         transition-[translate,scale,box-shadow,background-color,border-color,color,filter]
+         duration-200 ease-mola active:scale-[.97]
+         disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
+}
+
+@utility btn-primario {
+  @apply btn text-acento-texto shadow-acento
+         bg-linear-to-b from-acento-claro to-acento
+         hover:-translate-y-px hover:brightness-105;
+}
+
+@utility btn-secundario {
+  @apply btn border border-borda-forte bg-superficie text-texto shadow-card
+         hover:border-acento/50 hover:bg-superficie-2;
+}
+
+@utility btn-fantasma {
+  @apply btn text-texto-suave hover:bg-superficie-2 hover:text-texto;
+}
+
+@utility btn-perigo {
+  @apply btn border border-red-300 text-red-700
+         hover:bg-red-50 dark:border-red-900 dark:text-red-400
+         dark:hover:bg-red-950/40;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1
+         text-xs font-semibold ring-1 ring-black/5 ring-inset
+         dark:ring-white/10;
+}
+
+/* Fundo da lateral/login: marrom em degradê com um brilho da cor de destaque no alto. */
+@utility fundo-barra {
+  background-color: var(--barra);
+  background-image:
+    radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--acento) 18%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--barra), var(--barra-2));
+}
+
+/* Texto do valor principal (total, destaque) em degradê laranja. */
+@utility texto-degrade {
+  background-image: linear-gradient(180deg, var(--acento-claro), var(--acento));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Brinde do login (componente Brinde). O tranco dos canecos é em 55% de
+   0.9s ≈ 0.5s — os respingos e o clarão saem nesse instante. Origem na base
+   de cada caneco, em coordenadas do viewBox do SVG. */
+.brinde-esq {
+  transform-origin: -30px 24px;
+  animation: brinde-esq 0.9s var(--ease-mola) both;
+}
+.brinde-dir {
+  transform-origin: 30px 24px;
+  animation: brinde-dir 0.9s var(--ease-mola) both;
+}
+.brinde-respingo {
+  animation: respingo 0.7s ease-out 0.48s both;
+}
+.brinde-clarao {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: clarao 0.6s ease-out 0.48s both;
+}
+
+/* ---------------------------------------------------------------------------
+   Impressão — usada pelo relatório do cliente.
+   --------------------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .nao-imprimir {
+    display: none !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  tr,
+  .evitar-quebra {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  .card {
+    box-shadow: none !important;
+  }
+}
+
+/* Quem pediu "reduzir movimento" no sistema fica sem animação. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

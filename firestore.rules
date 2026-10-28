@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// Regras da Jardins Bebidas.
+//
+// Só a equipe logada lê e mexe nos dados. Cada login pode ter um documento
+// em /usuarios/{uid} com papel ("admin" ou "funcionario") e um mapa de
+// permissões. Sem documento = dono do sistema = acesso total.
+// "ativo: false" revoga o acesso sem apagar o login.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function logado() {
+      return request.auth != null;
+    }
+
+    function temPerfil() {
+      return exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function contaAtiva() {
+      return !temPerfil() || perfil().ativo != false;
+    }
+
+    function ehAdmin() {
+      return logado() && contaAtiva() && (!temPerfil() || perfil().papel == "admin");
+    }
+
+    function temPermissao(chave) {
+      return logado() && contaAtiva() && (ehAdmin() || perfil().permissoes[chave] == true);
+    }
+
+    function vende() {
+      return temPermissao("vendas") || temPermissao("comandas");
+    }
+
+    // Quem vende precisa ler os produtos e baixar o estoque ao finalizar.
+    match /produtos/{doc} {
+      allow read: if logado() && contaAtiva();
+      allow write: if temPermissao("produtos") || temPermissao("estoque") || vende();
+    }
+
+    // Quem vende escolhe e cadastra o cliente na hora (comanda exige cliente).
+    match /clientes/{doc} {
+      allow read: if temPermissao("clientes") || vende() || temPermissao("financeiro");
+      allow create, update: if temPermissao("clientes") || vende();
+      allow delete: if temPermissao("clientes") && temPermissao("excluir");
+    }
+
+    match /fornecedores/{doc} {
+      allow read: if temPermissao("fornecedores") || temPermissao("estoque") || temPermissao("financeiro");
+      allow write: if temPermissao("fornecedores") || temPermissao("estoque");
+    }
+
+    match /vendas/{doc} {
+      allow read: if vende() || temPermissao("relatorios") || temPermissao("financeiro");
+      allow write: if vende() || temPermissao("financeiro");
+    }
+
+    // Finalizar venda lança a saída no histórico do estoque.
+    match /movimentos/{doc} {
+      allow read, write: if temPermissao("estoque") || vende();
+    }
+
+    // Entrada (compra) a prazo cria as contas a pagar.
+    match /contasPagar/{doc} {
+      allow read, write: if temPermissao("financeiro") || temPermissao("estoque");
+    }
+
+    // Foto da nota de cada gasto (tela Gastos) — separada de /contasPagar
+    // pra não ser baixada junto com a lista.
+    match /comprovantes/{doc} {
+      allow read, write: if temPermissao("financeiro");
+    }
+
+    // Vitrine pública (/catalogo): qualquer um lê, sem login. Só tem nome,
+    // preço, foto e "tem/não tem" — custo e estoque ficam em /produtos.
+    // Quem mexe em produto ou vende regrava (preço mudou, produto acabou).
+    match /publico/{doc} {
+      allow read: if true;
+      allow write: if temPermissao("produtos") || temPermissao("estoque") || vende();
+    }
+
+    match /usuarios/{uid} {
+      allow read: if logado() && (request.auth.uid == uid || ehAdmin());
+      allow write: if ehAdmin();
+    }
+
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}

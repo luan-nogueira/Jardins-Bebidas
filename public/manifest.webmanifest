@@ -1,0 +1,10 @@
+{
+  "name": "Jardins Bebidas",
+  "short_name": "Jardins",
+  "description": "Vendas, comandas, estoque e financeiro da Jardins Bebidas.",
+  "start_url": "/admin",
+  "display": "standalone",
+  "background_color": "#faf6f1",
+  "theme_color": "#4a230f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
