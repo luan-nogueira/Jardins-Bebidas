@@ -8,7 +8,9 @@ import {
   ChevronRight,
   Download,
   ImageIcon,
+  HandCoins,
   MessageCircle,
+  Plus,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,11 +20,18 @@ import { BarrasHorizontais, CartaoGrafico } from "@/components/Graficos";
 import { useDados, novoId } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataBR, hojeISO, paraNumero } from "@/lib/format";
-import { FORMAS, ROTULO_FORMA } from "@/lib/vendas";
 import {
   CAIXA_DA_LOJA,
   CATEGORIAS_GASTO,
+  CATEGORIA_FORNECEDOR,
+  FORMAS_GASTO,
+  FORNECEDORES_BOLETO,
+  ROTULO_FORMA_GASTO,
+  aAcertar,
   apagarComprovante,
+  diaSaida,
+  grupoSaida,
+  type FormaGasto,
   comprimirFoto,
   lerComprovante,
   salvarComprovante,
@@ -33,7 +42,7 @@ import {
   saidasDoMes,
   type Saida,
 } from "@/lib/gastos";
-import type { ContaPagar, FormaPagamento } from "@/lib/types";
+import type { ContaPagar } from "@/lib/types";
 
 export default function GastosPage() {
   return (
@@ -56,8 +65,10 @@ function somarMes(mes: string, n: number) {
 interface Formulario {
   valor: string;
   categoria: string;
+  /** Nome do fornecedor, só na categoria Fornecedores. */
+  fornecedor: string;
   descricao: string;
-  forma: FormaPagamento;
+  forma: FormaGasto;
   doBolso: boolean;
   dia: string;
   /** Foto à mostra no formulário (nova, ou a já salva ao editar). */
@@ -69,6 +80,7 @@ interface Formulario {
 const novoForm = (): Formulario => ({
   valor: "",
   categoria: "",
+  fornecedor: "",
   descricao: "",
   forma: "PIX",
   doBolso: false,
@@ -76,7 +88,8 @@ const novoForm = (): Formulario => ({
 });
 
 function Gastos() {
-  const { contasPagar, movimentos, vendas, salvarContaPagar, removerContaPagar } = useDados();
+  const { contasPagar, movimentos, vendas, fornecedores, salvarContaPagar, removerContaPagar, salvarFornecedor } =
+    useDados();
   const { usuario, perfil } = useAuth();
   const meuNome = perfil?.nome || usuario?.email?.split("@")[0] || "Sócio";
 
@@ -91,7 +104,25 @@ function Gastos() {
   const [editando, setEditando] = useState<ContaPagar | null>(null);
   const [vendoFoto, setVendoFoto] = useState<string | null>(null);
   const [baixando, setBaixando] = useState(false);
+  const [novoFornecedor, setNovoFornecedor] = useState<string | null>(null);
+  /** Pessoa cujo "pago do bolso" está aberto no detalhe. */
+  const [vendoBolso, setVendoBolso] = useState<string | null>(null);
+  const [confirmandoAcerto, setConfirmandoAcerto] = useState(false);
+  const [acertando, setAcertando] = useState(false);
 
+  /** Os do boleto primeiro (na ordem do Nilo), depois o resto do cadastro. */
+  const opcoesFornecedor = useMemo(() => {
+    const chave = (n: string) => n.trim().toLocaleLowerCase("pt-BR");
+    const nomes = new Map<string, string>();
+    for (const n of FORNECEDORES_BOLETO) nomes.set(chave(n), n);
+    const cadastro = fornecedores
+      .filter((f) => f.ativo !== false)
+      .map((f) => f.nome)
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    for (const n of cadastro) if (!nomes.has(chave(n))) nomes.set(chave(n), n);
+    if (form.fornecedor && !nomes.has(chave(form.fornecedor))) nomes.set(chave(form.fornecedor), form.fornecedor);
+    return [...nomes.values()];
+  }, [fornecedores, form.fornecedor]);
   const saidas = useMemo(() => saidasDoMes(mes, contasPagar, movimentos), [mes, contasPagar, movimentos]);
   const entradas = useMemo(() => entradasDoMes(mes, vendas), [mes, vendas]);
   const totalSaiu = saidas.reduce((s, x) => s + x.valor, 0);
@@ -99,21 +130,41 @@ function Gastos() {
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, number>();
-    for (const s of saidas) mapa.set(s.categoria, (mapa.get(s.categoria) ?? 0) + s.valor);
+    for (const s of saidas) mapa.set(grupoSaida(s), (mapa.get(grupoSaida(s)) ?? 0) + s.valor);
     return [...mapa.entries()]
       .map(([chave, valor]) => ({ chave, rotulo: chave, valor }))
       .sort((a, b) => b.valor - a.valor);
   }, [saidas]);
 
-  /** Quem pagou do próprio bolso e precisa ser reembolsado pelo caixa. */
+  /**
+   * Quem pagou do próprio bolso e ainda não recebeu do caixa — de todos os
+   * meses, porque a dívida não some quando o mês vira.
+   */
   const doBolso = useMemo(() => {
-    const mapa = new Map<string, number>();
-    for (const s of saidas) {
-      if (s.pagoPor === CAIXA_DA_LOJA) continue;
-      mapa.set(s.pagoPor, (mapa.get(s.pagoPor) ?? 0) + s.valor);
+    const mapa = new Map<string, ContaPagar[]>();
+    for (const c of aAcertar(contasPagar)) mapa.set(c.pagoPor!, [...(mapa.get(c.pagoPor!) ?? []), c]);
+    return [...mapa.entries()]
+      .map(([nome, contas]) => ({ nome, contas, total: contas.reduce((s, c) => s + c.valor, 0) }))
+      .sort((a, b) => b.total - a.total);
+  }, [contasPagar]);
+  const bolsoAberto = doBolso.find((p) => p.nome === vendoBolso);
+
+  async function acertar() {
+    if (!bolsoAberto) return;
+    setAcertando(true);
+    try {
+      const agora = new Date().toISOString();
+      await Promise.all(bolsoAberto.contas.map((c) => salvarContaPagar({ ...c, acertadoEm: agora })));
+      setFeito(`${brl(bolsoAberto.total)} acertado com ${bolsoAberto.nome}`);
+      setTimeout(() => setFeito(""), 3000);
+      setVendoBolso(null);
+    } catch {
+      setErro("Não salvou o acerto. Confira a internet e tente de novo.");
+    } finally {
+      setAcertando(false);
+      setConfirmandoAcerto(false);
     }
-    return [...mapa.entries()].sort((a, b) => b[1] - a[1]);
-  }, [saidas]);
+  }
 
   const porDia = useMemo(() => {
     const mapa = new Map<string, Saida[]>();
@@ -148,9 +199,29 @@ function Gastos() {
       setErro("Escolha a categoria.");
       return;
     }
+    const ehFornecedor = form.categoria === CATEGORIA_FORNECEDOR;
+    const nomeFornecedor = ehFornecedor ? form.fornecedor.trim() : "";
+    if (ehFornecedor && !nomeFornecedor) {
+      setErro("Escolha o fornecedor.");
+      return;
+    }
     setErro("");
     setSalvando(true);
     try {
+      let fornecedorId: string | undefined;
+      if (ehFornecedor) {
+        const chave = nomeFornecedor.toLocaleLowerCase("pt-BR");
+        const existente = fornecedores.find((f) => f.nome.trim().toLocaleLowerCase("pt-BR") === chave);
+        fornecedorId = existente?.id;
+        if (!existente) {
+          // Vira fornecedor no cadastro. Quem só tem acesso ao Financeiro não
+          // pode gravar lá — o gasto sai igual, só com o nome.
+          const novo = { id: novoId(), nome: nomeFornecedor, ativo: true, criadoEm: new Date().toISOString() };
+          await salvarFornecedor(novo)
+            .then(() => (fornecedorId = novo.id))
+            .catch(() => {});
+        }
+      }
       const agora = new Date().toISOString();
       // Meio-dia local: o dia escolhido não "volta" um dia ao virar UTC.
       const pagoEm = form.dia === hojeISO() ? agora : new Date(`${form.dia}T12:00:00`).toISOString();
@@ -163,7 +234,9 @@ function Gastos() {
       const temComprovante = form.fotoMudou ? !!form.comprovante : !!base.temComprovante;
       await salvarContaPagar({
         ...base,
-        descricao: form.descricao.trim() || form.categoria,
+        descricao: form.descricao.trim() || nomeFornecedor || form.categoria,
+        fornecedorId,
+        fornecedorNome: nomeFornecedor || undefined,
         valor,
         vencimento: form.dia,
         pago: true,
@@ -174,7 +247,8 @@ function Gastos() {
         lancadoPor: base.lancadoPor ?? usuario?.email ?? undefined,
         temComprovante: temComprovante || undefined,
       });
-      setFeito(`${brl(valor)} em ${form.categoria} ${editando ? "atualizado" : "lançado"}`);
+      setFeito(`${brl(valor)} em ${nomeFornecedor || form.categoria} ${editando ? "atualizado" : "lançado"}`);
+      setNovoFornecedor(null);
       setTimeout(() => setFeito(""), 3000);
       setForm(novoForm());
       setEditando(null);
@@ -192,7 +266,8 @@ function Gastos() {
     setForm({
       valor: String(c.valor).replace(".", ","),
       categoria: c.categoria ?? "Outros",
-      descricao: c.descricao === c.categoria ? "" : c.descricao,
+      fornecedor: c.categoria === CATEGORIA_FORNECEDOR ? (c.fornecedorNome ?? "") : "",
+      descricao: c.descricao === c.categoria || c.descricao === c.fornecedorNome ? "" : c.descricao,
       forma: c.forma ?? "PIX",
       doBolso: !!c.pagoPor && c.pagoPor !== CAIXA_DA_LOJA,
       dia: c.vencimento,
@@ -235,7 +310,7 @@ function Gastos() {
       ...porCategoria.map((c) => `• ${c.rotulo}: ${brl(c.valor)}`),
     ];
     if (doBolso.length) {
-      linhas.push("", "*Pago do próprio bolso (a acertar)*", ...doBolso.map(([n, v]) => `• ${n}: ${brl(v)}`));
+      linhas.push("", "*Pago do próprio bolso (a acertar)*", ...doBolso.map((p) => `• ${p.nome}: ${brl(p.total)}`));
     }
     return linhas.join("\n");
   }
@@ -300,7 +375,14 @@ function Gastos() {
                   <button
                     key={nome}
                     type="button"
-                    onClick={() => setForm({ ...form, categoria: nome })}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        categoria: nome,
+                        // Fornecedor é quase sempre boleto; os outros não têm boleto.
+                        forma: nome === CATEGORIA_FORNECEDOR ? "BOLETO" : form.forma === "BOLETO" ? "PIX" : form.forma,
+                      })
+                    }
                     className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center text-[11px] leading-tight font-bold transition active:scale-95 ${
                       ativo
                         ? "border-acento bg-acento text-acento-texto shadow-md"
@@ -315,6 +397,55 @@ function Gastos() {
             </div>
           </div>
 
+          {form.categoria === CATEGORIA_FORNECEDOR && (
+            <div>
+              <span className="rotulo">Qual fornecedor?</span>
+              <div className="flex flex-wrap gap-1.5">
+                {opcoesFornecedor.map((nome) => (
+                  <button
+                    key={nome}
+                    type="button"
+                    onClick={() => {
+                      setForm({ ...form, fornecedor: nome });
+                      setNovoFornecedor(null);
+                    }}
+                    className={`h-9 rounded-full border px-3 text-xs font-bold transition active:scale-95 ${
+                      form.fornecedor === nome && novoFornecedor === null
+                        ? "border-acento bg-acento text-acento-texto"
+                        : "border-borda bg-superficie text-texto-suave hover:border-acento"
+                    }`}
+                  >
+                    {nome}
+                  </button>
+                ))}
+                {novoFornecedor === null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNovoFornecedor("");
+                      setForm({ ...form, fornecedor: "" });
+                    }}
+                    className="flex h-9 items-center gap-1 rounded-full border border-dashed border-borda px-3 text-xs font-bold text-texto-suave hover:border-acento"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Outro
+                  </button>
+                )}
+              </div>
+              {novoFornecedor !== null && (
+                <input
+                  autoFocus
+                  className="campo mt-2 h-11 text-base"
+                  placeholder="Nome do fornecedor"
+                  value={novoFornecedor}
+                  onChange={(e) => {
+                    setNovoFornecedor(e.target.value);
+                    setForm({ ...form, fornecedor: e.target.value });
+                  }}
+                />
+              )}
+            </div>
+          )}
+
           <div>
             <label className="rotulo" htmlFor="g-desc">Descrição (opcional)</label>
             <input
@@ -328,8 +459,8 @@ function Gastos() {
 
           <div>
             <span className="rotulo">Pagou como?</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {FORMAS.map((f) => (
+            <div className="grid grid-cols-5 gap-1.5">
+              {FORMAS_GASTO.map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -338,7 +469,7 @@ function Gastos() {
                     form.forma === f ? "border-acento bg-acento/10 text-acento" : "border-borda text-texto-suave"
                   }`}
                 >
-                  {ROTULO_FORMA[f].replace("Cartão ", "")}
+                  {ROTULO_FORMA_GASTO[f].replace("Cartão ", "")}
                 </button>
               ))}
             </div>
@@ -473,12 +604,19 @@ function Gastos() {
           {doBolso.length > 0 && (
             <section className="card border-amber-300 p-4 dark:border-amber-900">
               <h3 className="text-sm font-bold">Pago do próprio bolso</h3>
-              <p className="text-xs text-texto-suave">O caixa precisa acertar com essas pessoas.</p>
-              <ul className="mt-2 space-y-1">
-                {doBolso.map(([nome, valor]) => (
-                  <li key={nome} className="flex justify-between text-sm">
-                    <span className="font-semibold">{nome}</span>
-                    <span className="font-bold tabular-nums">{brl(valor)}</span>
+              <p className="text-xs text-texto-suave">O caixa precisa acertar com essas pessoas. Toque pra ver o detalhe.</p>
+              <ul className="-mx-2 mt-2">
+                {doBolso.map((p) => (
+                  <li key={p.nome}>
+                    <button
+                      onClick={() => setVendoBolso(p.nome)}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-superficie-2"
+                    >
+                      <span className="min-w-0 flex-1 truncate font-semibold">{p.nome}</span>
+                      <span className="text-xs text-texto-suave">{p.contas.length} lanç.</span>
+                      <span className="font-bold tabular-nums">{brl(p.total)}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-texto-suave" />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -518,7 +656,12 @@ function Gastos() {
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-sm font-semibold">{s.descricao}</span>
                                 <span className="block truncate text-xs text-texto-suave">
-                                  {[s.categoria, s.forma, s.pagoPor !== CAIXA_DA_LOJA && `pago por ${s.pagoPor}`]
+                                  {[
+                                    s.fornecedor && s.fornecedor !== s.descricao ? s.fornecedor : s.categoria,
+                                    s.forma,
+                                    s.pagoPor !== CAIXA_DA_LOJA &&
+                                      `pago por ${s.pagoPor}${s.conta?.acertadoEm ? " (acertado)" : ""}`,
+                                  ]
                                     .filter(Boolean)
                                     .join(" · ")}
                                   {s.origem !== "GASTO" && " · lançado em outra tela"}
@@ -551,6 +694,81 @@ function Gastos() {
           </section>
         </div>
       </div>
+
+      <Modal
+        aberto={!!bolsoAberto}
+        aoFechar={() => {
+          setVendoBolso(null);
+          setConfirmandoAcerto(false);
+        }}
+        titulo={bolsoAberto ? `Pago por ${bolsoAberto.nome}` : ""}
+        rodape={
+          bolsoAberto &&
+          (confirmandoAcerto ? (
+            <>
+              <button className="btn-secundario" onClick={() => setConfirmandoAcerto(false)} disabled={acertando}>
+                Voltar
+              </button>
+              <button className="btn-primario" onClick={acertar} disabled={acertando}>
+                {acertando ? "Salvando…" : `Sim, recebeu ${brl(bolsoAberto.total)}`}
+              </button>
+            </>
+          ) : (
+            <button className="btn-primario" onClick={() => setConfirmandoAcerto(true)}>
+              <HandCoins className="h-4 w-4" /> Caixa já pagou
+            </button>
+          ))
+        }
+      >
+        {bolsoAberto && (
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between rounded-xl bg-superficie-2 px-4 py-3">
+              <span className="text-sm font-semibold text-texto-suave">A acertar</span>
+              <span className="text-2xl font-black tabular-nums">{brl(bolsoAberto.total)}</span>
+            </div>
+            {confirmandoAcerto && (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                O caixa devolveu {brl(bolsoAberto.total)} pra {bolsoAberto.nome}? Esses lançamentos saem da lista de
+                acerto (continuam nas saídas do mês).
+              </p>
+            )}
+            <ul className="divide-y divide-borda">
+              {bolsoAberto.contas.map((c) => {
+                const Icone = iconeGasto(c.categoria ?? "");
+                return (
+                  <li key={c.id} className="flex items-center gap-3 py-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-acento/10 text-acento">
+                      <Icone className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{c.descricao}</span>
+                      <span className="block truncate text-xs text-texto-suave">
+                        {[
+                          dataBR(diaSaida(c)),
+                          c.fornecedorNome && c.fornecedorNome !== c.descricao ? c.fornecedorNome : c.categoria,
+                          c.forma && ROTULO_FORMA_GASTO[c.forma],
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                    {c.temComprovante && (
+                      <button
+                        onClick={() => void verComprovante(c.id)}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-texto-suave hover:bg-superficie-2"
+                        aria-label="Ver comprovante"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                    <span className="shrink-0 font-bold tabular-nums">{brl(c.valor)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </Modal>
 
       <Modal aberto={!!vendoFoto} aoFechar={() => setVendoFoto(null)} titulo="Comprovante">
         {vendoFoto && (

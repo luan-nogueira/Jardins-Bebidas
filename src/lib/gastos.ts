@@ -10,6 +10,7 @@ import {
   ShoppingBasket,
   Snowflake,
   Sparkles,
+  Truck,
   Users,
   Wifi,
   Wrench,
@@ -17,8 +18,8 @@ import {
 } from "lucide-react";
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { firebaseConfigurado, getDb } from "./firebase";
-import { ROTULO_FORMA, diaLocal } from "./vendas";
-import type { ContaPagar, EstoqueMovimento, Venda } from "./types";
+import { FORMAS, ROTULO_FORMA, diaLocal } from "./vendas";
+import type { ContaPagar, EstoqueMovimento, FormaPagamento, Venda } from "./types";
 
 /**
  * Gastos do dia a dia — o que o sócio antes jogava no grupo do WhatsApp
@@ -30,6 +31,7 @@ import type { ContaPagar, EstoqueMovimento, Venda } from "./types";
  * no estoque. A prestação de contas soma as duas coisas.
  */
 export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon }[] = [
+  { nome: "Fornecedores", Icone: Truck },
   { nome: "Mantimentos", Icone: ShoppingBasket },
   { nome: "Carnes", Icone: Beef },
   { nome: "Gelo", Icone: Snowflake },
@@ -46,7 +48,44 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon }[] = [
   { nome: "Outros", Icone: Package },
 ];
 
+export const CATEGORIA_FORNECEDOR = "Fornecedores";
+
+/**
+ * Empresas que o Nilo paga por boleto. Aparecem na escolha mesmo antes de
+ * existirem no cadastro; ao lançar o primeiro gasto, viram fornecedor.
+ */
+export const FORNECEDORES_BOLETO = [
+  "Ambev",
+  "Uniber",
+  "Coca Cola",
+  "Nossa Senhora",
+  "CDY",
+  "3F Distribuidora",
+  "CESCOM",
+  "MIB",
+  "Uniaves",
+  "Império",
+  "Empresa Brasileira",
+  "C S Carvalho",
+];
+
+export type FormaGasto = FormaPagamento | "BOLETO";
+export const FORMAS_GASTO: FormaGasto[] = [...FORMAS, "BOLETO"];
+export const ROTULO_FORMA_GASTO: Record<FormaGasto, string> = { ...ROTULO_FORMA, BOLETO: "Boleto" };
+
 export const CAIXA_DA_LOJA = "Caixa da loja";
+
+/** Pago do bolso e o caixa ainda não devolveu (todos os meses). */
+export function aAcertar(contas: ContaPagar[]): ContaPagar[] {
+  return contas
+    .filter((c) => c.pago && c.pagoPor && c.pagoPor !== CAIXA_DA_LOJA && !c.acertadoEm)
+    .sort((a, b) => diaSaida(b).localeCompare(diaSaida(a)));
+}
+
+/** Barra do gráfico/Excel: cada fornecedor separado, o resto pela categoria. */
+export function grupoSaida(s: Pick<Saida, "categoria" | "fornecedor">): string {
+  return s.fornecedor ?? s.categoria;
+}
 
 /** Categoria das compras de mercadoria à vista (Entradas) na prestação de contas. */
 export const CATEGORIA_MERCADORIA = "Mercadoria (Entradas)";
@@ -70,6 +109,8 @@ export interface Saida {
   dia: string;
   descricao: string;
   categoria: string;
+  /** Só em gasto da categoria Fornecedores. */
+  fornecedor?: string;
   valor: number;
   forma: string;
   pagoPor: string;
@@ -100,8 +141,9 @@ export function saidasDoMes(
       dia,
       descricao: c.descricao,
       categoria: c.categoria ?? (c.compraId ? CATEGORIA_MERCADORIA : "Contas a pagar"),
+      fornecedor: c.categoria === CATEGORIA_FORNECEDOR ? c.fornecedorNome : undefined,
       valor: c.valor,
-      forma: c.forma ? ROTULO_FORMA[c.forma] : "",
+      forma: c.forma ? ROTULO_FORMA_GASTO[c.forma] : "",
       pagoPor: c.pagoPor ?? CAIXA_DA_LOJA,
       lancadoPor: c.lancadoPor ?? "",
       origem: ehGasto(c) ? "GASTO" : "CONTA",
@@ -277,7 +319,7 @@ export async function exportarPrestacaoContas(
   const porCategoria = new Map<string, number>();
   const porPagador = new Map<string, number>();
   for (const s of saidas) {
-    porCategoria.set(s.categoria, (porCategoria.get(s.categoria) ?? 0) + s.valor);
+    porCategoria.set(grupoSaida(s), (porCategoria.get(grupoSaida(s)) ?? 0) + s.valor);
     porPagador.set(s.pagoPor, (porPagador.get(s.pagoPor) ?? 0) + s.valor);
   }
   bloco("Saídas por categoria", porCategoria, totalSaiu);
@@ -295,6 +337,7 @@ export async function exportarPrestacaoContas(
   s.columns = [
     { header: "Data", key: "dia", width: 12 },
     { header: "Categoria", key: "categoria", width: 22 },
+    { header: "Fornecedor", key: "fornecedor", width: 20 },
     { header: "Descrição", key: "descricao", width: 36 },
     { header: "Forma", key: "forma", width: 12 },
     { header: "Quem pagou", key: "pagoPor", width: 18 },

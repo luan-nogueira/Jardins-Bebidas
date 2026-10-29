@@ -213,9 +213,12 @@ export interface ContaPagar {
    * Entra já pago. Os campos abaixo só existem nesses lançamentos.
    */
   categoria?: string;
-  forma?: FormaPagamento;
+  /** Boleto só existe em gasto (fornecedor); venda não recebe em boleto. */
+  forma?: FormaPagamento | "BOLETO";
   /** "Caixa da loja" ou o nome de quem pagou do próprio bolso (pra acertar depois). */
   pagoPor?: string;
+  /** Quando o caixa devolveu o dinheiro a quem pagou do bolso. */
+  acertadoEm?: string;
   /** E-mail de quem lançou no sistema. */
   lancadoPor?: string;
   /**
