@@ -4,8 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import {
   Camera,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
   ImageIcon,
   HandCoins,
@@ -77,6 +79,9 @@ interface Formulario {
   fotoMudou?: boolean;
 }
 
+/** Quantas categorias aparecem antes do "Ver todas" (3 fileiras de 3 com o botão). */
+const CATEGORIAS_VISIVEIS = 8;
+
 const novoForm = (): Formulario => ({
   valor: "",
   categoria: "",
@@ -98,6 +103,7 @@ function Gastos() {
   const [salvando, setSalvando] = useState(false);
   const [feito, setFeito] = useState("");
   const [lendoFoto, setLendoFoto] = useState(false);
+  const [todasCategorias, setTodasCategorias] = useState(false);
   const campoValor = useRef<HTMLInputElement>(null);
 
   const [mes, setMes] = useState(() => mesDe(hojeISO()));
@@ -148,6 +154,12 @@ function Gastos() {
       .sort((a, b) => b.total - a.total);
   }, [contasPagar]);
   const bolsoAberto = doBolso.find((p) => p.nome === vendoBolso);
+
+  // As do dia a dia ficam à mostra; as do mês (aluguel, luz…) atrás de "Ver todas".
+  // Ao editar um gasto de categoria escondida, abre tudo pra ela aparecer marcada.
+  const escondida = CATEGORIAS_GASTO.findIndex((c) => c.nome === form.categoria) >= CATEGORIAS_VISIVEIS;
+  const categoriasNaTela =
+    todasCategorias || escondida ? CATEGORIAS_GASTO : CATEGORIAS_GASTO.slice(0, CATEGORIAS_VISIVEIS);
 
   async function acertar() {
     if (!bolsoAberto) return;
@@ -331,7 +343,7 @@ function Gastos() {
 
       <div className="grid items-start gap-5 px-4 pb-6 md:px-6 xl:grid-cols-[420px_1fr]">
         {/* Lançar */}
-        <form onSubmit={lancar} className="card space-y-4 p-4 xl:sticky xl:top-4">
+        <form onSubmit={lancar} className="card space-y-3 p-3.5 sm:p-4 xl:sticky xl:top-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">{editando ? "Editar gasto" : "Lançar gasto"}</h2>
             {editando && (
@@ -351,13 +363,13 @@ function Gastos() {
           <div>
             <label className="rotulo" htmlFor="g-valor">Valor</label>
             <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-xl font-bold text-texto-suave">
+              <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-lg font-bold text-texto-suave">
                 R$
               </span>
               <input
                 ref={campoValor}
                 id="g-valor"
-                className="campo h-16 pl-14 text-3xl font-black tabular-nums"
+                className="campo h-13 pl-12 text-2xl font-black tabular-nums"
                 inputMode="decimal"
                 placeholder="0,00"
                 value={form.valor}
@@ -368,8 +380,8 @@ function Gastos() {
 
           <div>
             <span className="rotulo">Com o quê?</span>
-            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 xl:grid-cols-3">
-              {CATEGORIAS_GASTO.map(({ nome, Icone }) => {
+            <div className="grid grid-cols-3 gap-1.5">
+              {categoriasNaTela.map(({ nome, Icone }) => {
                 const ativo = form.categoria === nome;
                 return (
                   <button
@@ -383,17 +395,34 @@ function Gastos() {
                         forma: nome === CATEGORIA_FORNECEDOR ? "BOLETO" : form.forma === "BOLETO" ? "PIX" : form.forma,
                       })
                     }
-                    className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center text-[11px] leading-tight font-bold transition active:scale-95 ${
+                    className={`flex h-11 items-center gap-1.5 rounded-xl border px-2 text-left text-[11px] leading-tight font-bold transition active:scale-95 ${
                       ativo
                         ? "border-acento bg-acento text-acento-texto shadow-md"
                         : "border-borda bg-superficie text-texto-suave hover:border-acento"
                     }`}
                   >
-                    <Icone className="h-5 w-5" />
-                    {nome}
+                    <Icone className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0">{nome}</span>
                   </button>
                 );
               })}
+              {!escondida && (
+                <button
+                  type="button"
+                  onClick={() => setTodasCategorias((v) => !v)}
+                  className="flex h-11 items-center justify-center gap-1 rounded-xl border border-dashed border-borda px-2 text-[11px] font-bold text-texto-suave transition hover:border-acento"
+                >
+                  {todasCategorias ? (
+                    <>
+                      <ChevronUp className="h-4 w-4 shrink-0" /> Ver menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 shrink-0" /> Ver todas
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -450,7 +479,7 @@ function Gastos() {
             <label className="rotulo" htmlFor="g-desc">Descrição (opcional)</label>
             <input
               id="g-desc"
-              className="campo h-11 text-base"
+              className="campo h-10 text-base"
               placeholder="Ex: Atacadão, carne do sábado"
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
@@ -469,7 +498,7 @@ function Gastos() {
                     form.forma === f ? "border-acento bg-acento/10 text-acento" : "border-borda text-texto-suave"
                   }`}
                 >
-                  {ROTULO_FORMA_GASTO[f].replace("Cartão ", "")}
+                  {ROTULO_FORMA_GASTO[f].replace(/^Cartão (\p{L})/u, (_, l: string) => l.toUpperCase())}
                 </button>
               ))}
             </div>
@@ -499,7 +528,7 @@ function Gastos() {
               <input
                 id="g-dia"
                 type="date"
-                className="campo h-11"
+                className="campo h-10"
                 value={form.dia}
                 max={hojeISO()}
                 onChange={(e) => setForm({ ...form, dia: e.target.value || hojeISO() })}
@@ -508,11 +537,11 @@ function Gastos() {
             <div className="min-w-0">
               <span className="rotulo">Nota / comprovante</span>
               {form.comprovante ? (
-                <div className="flex h-11 items-center gap-1.5">
+                <div className="flex h-10 items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setVendoFoto(form.comprovante!)}
-                    className="h-11 w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-borda"
+                    className="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-borda"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={form.comprovante} alt="Comprovante" className="h-full w-full object-cover" />
@@ -526,7 +555,7 @@ function Gastos() {
                   </button>
                 </div>
               ) : (
-                <label className="btn-secundario h-11 w-full cursor-pointer text-xs">
+                <label className="btn-secundario h-10 w-full cursor-pointer text-xs">
                   <Camera className="h-4 w-4" />
                   {lendoFoto ? "Lendo…" : "Foto"}
                   <input type="file" accept="image/*" capture="environment" className="hidden" onChange={aoEscolherFoto} />
