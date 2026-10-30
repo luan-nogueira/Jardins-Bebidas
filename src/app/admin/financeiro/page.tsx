@@ -3,8 +3,10 @@
 import { apagarComprovante } from "@/lib/gastos";
 import { useMemo, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   Circle,
+  Copy,
   Pencil,
   Plus,
   Scale,
@@ -34,6 +36,7 @@ type Formulario = {
   fornecedorId: string;
   valor: string;
   vencimento: string;
+  codigoBoleto: string;
   obs: string;
 };
 
@@ -42,8 +45,14 @@ const FORM_VAZIO: Formulario = {
   fornecedorId: "",
   valor: "",
   vencimento: hojeISO(),
+  codigoBoleto: "",
   obs: "",
 };
+
+/** "34191.79001 01043.510047 ..." → só os dígitos (o banco aceita assim). */
+function soDigitos(s: string): string {
+  return s.replace(/\D/g, "");
+}
 
 type FiltroContas = "pendentes" | "pagas" | "todas";
 
@@ -167,9 +176,25 @@ function FinanceiroPageInterno() {
       fornecedorId: c.fornecedorId ?? "",
       valor: paraCampo(c.valor),
       vencimento: c.vencimento,
+      codigoBoleto: c.codigoBoleto ?? "",
       obs: c.obs ?? "",
     });
     setAberto(true);
+  }
+
+  /** Id da conta cujo código acabou de ser copiado (mostra "Copiado"). */
+  const [copiado, setCopiado] = useState<string | null>(null);
+
+  async function copiarBoleto(c: ContaPagar) {
+    if (!c.codigoBoleto) return;
+    try {
+      await navigator.clipboard.writeText(c.codigoBoleto);
+      setCopiado(c.id);
+      setTimeout(() => setCopiado((atual) => (atual === c.id ? null : atual)), 2500);
+    } catch {
+      // Sem permissão de área de transferência: abre a conta pra copiar à mão.
+      abrirEdicao(c);
+    }
   }
 
   async function salvar() {
@@ -180,14 +205,18 @@ function FinanceiroPageInterno() {
     setSalvandoConta(true);
     try {
       const fornecedor = fornecedores.find((f) => f.id === form.fornecedorId);
+      // Fornecedor que não está no cadastro (só o nome, vindo da entrada): editar
+      // a conta sem mexer no campo não pode apagar o nome dele.
+      const manteveFornecedor = form.fornecedorId === (editando?.fornecedorId ?? "");
       await salvarContaPagar({
         ...editando,
         id: editando?.id ?? novoId(),
         descricao,
         fornecedorId: fornecedor?.id,
-        fornecedorNome: fornecedor?.nome,
+        fornecedorNome: fornecedor?.nome ?? (manteveFornecedor ? editando?.fornecedorNome : undefined),
         valor,
         vencimento: form.vencimento || hojeISO(),
+        codigoBoleto: soDigitos(form.codigoBoleto) || undefined,
         obs: form.obs.trim() || undefined,
         pago: editando?.pago ?? false,
         pagoEm: editando?.pagoEm,
@@ -395,6 +424,26 @@ function FinanceiroPageInterno() {
                           : `vence ${dataBR(c.vencimento)}`}
                         {vencida && " · vencida"}
                       </p>
+                      {c.codigoBoleto && !c.pago && (
+                        <button
+                          onClick={() => void copiarBoleto(c)}
+                          className={`mt-1.5 inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition active:scale-95 ${
+                            copiado === c.id
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              : "border-acento text-acento hover:bg-acento/10"
+                          }`}
+                        >
+                          {copiado === c.id ? (
+                            <>
+                              <Check className="h-3.5 w-3.5" /> Código copiado
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5" /> Copiar boleto
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                     <span
                       className={`shrink-0 font-black tabular-nums ${
@@ -544,6 +593,25 @@ function FinanceiroPageInterno() {
                 onChange={(e) => setForm({ ...form, vencimento: e.target.value })}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="rotulo" htmlFor="cp-boleto">Código do boleto (opcional)</label>
+            <input
+              id="cp-boleto"
+              className="campo font-mono text-sm"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Cole aqui a linha digitável"
+              value={form.codigoBoleto}
+              onChange={(e) => setForm({ ...form, codigoBoleto: e.target.value })}
+            />
+            {form.codigoBoleto && ![44, 47, 48].includes(soDigitos(form.codigoBoleto).length) && (
+              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                Esse código tem {soDigitos(form.codigoBoleto).length} números — boleto costuma ter 47 (ou 48 em conta de
+                consumo). Confira se colou inteiro.
+              </p>
+            )}
           </div>
 
           <div>

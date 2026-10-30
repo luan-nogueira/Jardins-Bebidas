@@ -206,6 +206,8 @@ export interface ContaPagar {
   pago: boolean;
   pagoEm?: string;
   obs?: string;
+  /** Linha digitável do boleto, só os números — pra copiar e colar no app do banco. */
+  codigoBoleto?: string;
   /** Compra (nota) que gerou esta conta. */
   compraId?: string;
   /**
