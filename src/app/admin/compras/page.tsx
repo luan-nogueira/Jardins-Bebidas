@@ -102,6 +102,8 @@ function ComprasPageInterno() {
     let prazo = 0;
     let semValor = 0;
     let faltaPagar = 0;
+    // Os itens de uma mesma nota apontam pra mesma conta: soma cada conta uma vez.
+    const contadas = new Set<string>();
     for (const m of compras) {
       const valor = valorCompra(m);
       total += valor;
@@ -109,6 +111,8 @@ function ComprasPageInterno() {
       else avista += valor;
       if (valor <= 0) semValor += 1;
       for (const id of idsDasContas(m)) {
+        if (contadas.has(id)) continue;
+        contadas.add(id);
         const c = contas.get(id);
         if (c && !c.pago) faltaPagar += c.valor;
       }
