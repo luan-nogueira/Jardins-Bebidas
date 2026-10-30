@@ -87,6 +87,7 @@ export function ModalPlanilha({
             categoria: l.categoria,
             unPorCaixa: l.unPorCaixa,
             precoUn: l.precoUn,
+            precoRetirada: l.precoRetirada || undefined,
             precoCusto: l.precoCusto,
             estoqueUn: l.semEstoque ? 0 : l.estoqueUn,
             estoqueMinimo: l.estoqueMinimo,

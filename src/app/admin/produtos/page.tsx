@@ -30,6 +30,7 @@ type Formulario = {
   categoria: string;
   unPorCaixa: string;
   precoUn: string;
+  precoRetirada: string;
   precoTabela2: string;
   precoTabela3: string;
   precoCusto: string;
@@ -48,6 +49,7 @@ const FORM_VAZIO: Formulario = {
   categoria: CATEGORIAS_PADRAO[0],
   unPorCaixa: "1",
   precoUn: "",
+  precoRetirada: "",
   precoTabela2: "",
   precoTabela3: "",
   precoCusto: "",
@@ -188,6 +190,7 @@ function ProdutosPageInterno() {
       categoria: p.categoria,
       unPorCaixa: String(p.unPorCaixa),
       precoUn: paraCampo(p.precoUn),
+      precoRetirada: p.precoRetirada ? paraCampo(p.precoRetirada) : "",
       precoTabela2: p.precoTabela2 ? paraCampo(p.precoTabela2) : "",
       precoTabela3: p.precoTabela3 ? paraCampo(p.precoTabela3) : "",
       precoCusto: paraCampo(p.precoCusto),
@@ -218,6 +221,7 @@ function ProdutosPageInterno() {
       // Uma caixa nunca tem zero unidade; o mínimo é o produto avulso.
       unPorCaixa: Math.max(1, Math.round(paraNumero(form.unPorCaixa))),
       precoUn: paraNumero(form.precoUn),
+      precoRetirada: paraNumero(form.precoRetirada) > 0 ? paraNumero(form.precoRetirada) : undefined,
       precoTabela2: form.precoTabela2 ? paraNumero(form.precoTabela2) : undefined,
       precoTabela3: form.precoTabela3 ? paraNumero(form.precoTabela3) : undefined,
       precoCusto: paraNumero(form.precoCusto),
@@ -496,7 +500,7 @@ function ProdutosPageInterno() {
             <div className={permissoes.verCusto ? "grid grid-cols-2 gap-3" : ""}>
               <div className="min-w-0">
                 <label className="rotulo" htmlFor="preco">
-                  Preço de venda (R$)
+                  Consumo no local (R$)
                 </label>
                 <input
                   id="preco"
@@ -522,6 +526,19 @@ function ProdutosPageInterno() {
                   />
                 </div>
               )}
+            </div>
+            <div>
+              <label className="rotulo" htmlFor="preco-retirada">
+                Retirada (R$) — opcional
+              </label>
+              <input
+                id="preco-retirada"
+                className="campo"
+                inputMode="decimal"
+                placeholder="Mesmo preço do consumo no local"
+                value={form.precoRetirada}
+                onChange={(e) => setForm({ ...form, precoRetirada: e.target.value })}
+              />
             </div>
             {permissoes.verCusto && (
               <p className="text-xs text-texto-suave">

@@ -66,6 +66,11 @@ function VerComanda() {
     await salvarVenda({ ...c, itens, atualizadoEm: new Date().toISOString() });
   }
 
+  async function mudarRetirada(retirada: boolean) {
+    const { retirada: _, ...resto } = c;
+    await salvarVenda({ ...resto, ...(retirada && { retirada: true }), atualizadoEm: new Date().toISOString() });
+  }
+
   async function salvarDesconto() {
     const valor = Math.min(subtotal, Math.max(0, paraNumero(desconto)));
     if (valor === c.desconto) return;
@@ -109,7 +114,11 @@ function VerComanda() {
           </div>
           <div className="hidden xl:block">
             <h2 className="mb-2 text-sm font-bold">Adicionar produtos</h2>
-            <SeletorProdutos aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd))} />
+            <SeletorProdutos
+            retirada={!!c.retirada}
+            aoMudarRetirada={mudarRetirada}
+            aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd, !!c.retirada))}
+          />
           </div>
         </div>
 
@@ -163,7 +172,11 @@ function VerComanda() {
       </div>
 
       <Modal aberto={adicionando} aoFechar={() => setAdicionando(false)} titulo="Adicionar produtos" largura="max-w-2xl">
-        <SeletorProdutos aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd))} />
+        <SeletorProdutos
+            retirada={!!c.retirada}
+            aoMudarRetirada={mudarRetirada}
+            aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd, !!c.retirada))}
+          />
       </Modal>
 
       <ModalPagamento

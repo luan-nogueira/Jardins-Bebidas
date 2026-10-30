@@ -43,6 +43,8 @@ function VendasInterno() {
   const { finalizar } = useAcoesVenda();
 
   const [itens, setItens] = useState<VendaItem[]>([]);
+  /** Preço de retirada nos produtos que entram daqui pra frente. */
+  const [retirada, setRetirada] = useState(false);
   const [desconto, setDesconto] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
@@ -79,6 +81,7 @@ function VendasInterno() {
     setItens([]);
     setDesconto("");
     setCliente(null);
+    setRetirada(false);
     setCarrinhoAberto(false);
   }
 
@@ -136,6 +139,7 @@ function VendasInterno() {
         clienteId: c.id,
         clienteNome: c.nome,
         operador: usuario?.email ?? undefined,
+        ...(retirada && { retirada: true }),
       },
       proximoNumeroVenda(),
     );
@@ -224,7 +228,11 @@ function VendasInterno() {
 
       <div className="grid gap-4 px-4 md:px-6 xl:grid-cols-[1fr_360px]">
         <div className="min-w-0">
-          <SeletorProdutos aoEscolher={(p, qtd) => setItens((its) => adicionarItem(its, p, qtd))} />
+          <SeletorProdutos
+            retirada={retirada}
+            aoMudarRetirada={setRetirada}
+            aoEscolher={(p, qtd) => setItens((its) => adicionarItem(its, p, qtd, retirada))}
+          />
 
           <section className="mt-8">
             <h2 className="mb-2 text-sm font-bold">Vendas de hoje</h2>

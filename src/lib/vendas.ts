@@ -74,9 +74,16 @@ export function diaDaVenda(v: Venda): string {
   return diaLocal(v.finalizadaEm ?? v.abertaEm);
 }
 
+/** Preço de consumo no local ou, se o produto tiver, de retirada. */
+export function precoDe(produto: Produto, retirada = false): number {
+  return retirada && produto.precoRetirada ? produto.precoRetirada : produto.precoUn;
+}
+
 /** Junta itens iguais (mesmo produto e preço) somando a quantidade. */
-export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1): VendaItem[] {
-  const i = itens.findIndex((x) => x.produtoId === produto.id && x.precoUn === produto.precoUn);
+export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1, retirada = false): VendaItem[] {
+  const preco = precoDe(produto, retirada);
+  const comRetirada = retirada && !!produto.precoRetirada;
+  const i = itens.findIndex((x) => x.produtoId === produto.id && x.precoUn === preco && !!x.retirada === comRetirada);
   if (i >= 0) {
     const novos = [...itens];
     novos[i] = { ...novos[i], qtd: novos[i].qtd + qtd };
@@ -89,7 +96,8 @@ export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1): Ve
       nome: produto.nome,
       categoria: produto.categoria || "Sem categoria",
       qtd,
-      precoUn: produto.precoUn,
+      precoUn: preco,
+      ...(comRetirada && { retirada: true }),
       custoUn: produto.precoCusto || 0,
     },
   ];

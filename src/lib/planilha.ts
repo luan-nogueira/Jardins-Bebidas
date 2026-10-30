@@ -20,6 +20,7 @@ const COLUNAS = [
   { chave: "nome", titulo: "Produto", largura: 46, editavel: true },
   { chave: "categoria", titulo: "Categoria", largura: 22, editavel: true },
   { chave: "precoUn", titulo: "Preço de venda (R$)", largura: 15, editavel: true },
+  { chave: "precoRetirada", titulo: "Preço retirada (R$)", largura: 15, editavel: true },
   { chave: "precoCusto", titulo: "Preço de custo (R$)", largura: 15, editavel: true },
   { chave: "margem", titulo: "Margem", largura: 10, editavel: false },
   { chave: "estoqueUn", titulo: "Estoque atual", largura: 12, editavel: true },
@@ -47,6 +48,8 @@ export interface LinhaPlanilha {
   nome: string;
   categoria: string;
   precoUn: number;
+  /** undefined = planilha antiga, sem a coluna (não mexe); 0 = em branco (tira). */
+  precoRetirada?: number;
   precoCusto: number;
   estoqueUn: number;
   estoqueMinimo: number;
@@ -98,6 +101,7 @@ export async function exportarPlanilha(produtos: Produto[], categoriasExtras: st
     row.getCell(letra("nome")).value = p.nome;
     row.getCell(letra("categoria")).value = p.categoria || "Sem categoria";
     row.getCell(letra("precoUn")).value = p.precoUn || 0;
+    row.getCell(letra("precoRetirada")).value = p.precoRetirada ?? null;
     row.getCell(letra("precoCusto")).value = p.precoCusto || 0;
     const v = `${letra("precoUn")}${r}`;
     const c = `${letra("precoCusto")}${r}`;
@@ -124,6 +128,7 @@ export async function exportarPlanilha(produtos: Produto[], categoriasExtras: st
       cel.border = { bottom: { style: "hair", color: { argb: "FFE0D4C6" } } };
     });
     row.getCell(letra("precoUn")).numFmt = '"R$" #,##0.00';
+    row.getCell(letra("precoRetirada")).numFmt = '"R$" #,##0.00';
     row.getCell(letra("precoCusto")).numFmt = '"R$" #,##0.00';
     row.getCell(letra("margem")).numFmt = "0.0%";
     row.getCell(letra("codigo")).numFmt = "@";
@@ -157,7 +162,7 @@ export async function exportarPlanilha(produtos: Produto[], categoriasExtras: st
       error: "Escolha Sim ou Não na lista.",
     });
   }
-  for (const chave of ["precoUn", "precoCusto"] as const) {
+  for (const chave of ["precoUn", "precoRetirada", "precoCusto"] as const) {
     dv.add(faixa(chave), {
       type: "decimal",
       operator: "greaterThanOrEqual",
@@ -295,6 +300,7 @@ export async function lerPlanilha(arquivo: File): Promise<{ linhas: LinhaPlanilh
       nome,
       categoria: texto(pega("categoria")) || "Sem categoria",
       precoUn: preco,
+      precoRetirada: posicao.has("precoRetirada") ? numero(pega("precoRetirada")) : undefined,
       precoCusto: numero(pega("precoCusto")),
       estoqueUn: numero(pega("estoqueUn")),
       estoqueMinimo: Math.max(0, Math.round(numero(pega("estoqueMinimo")))),
@@ -344,6 +350,8 @@ export function compararComCadastro(linhas: LinhaPlanilha[], produtos: Produto[]
     dif("nome", l.nome, "Nome");
     dif("categoria", l.categoria, "Categoria");
     dif("precoUn", l.precoUn, "Venda", (v) => fmt(Number(v) || 0));
+    if (l.precoRetirada !== undefined)
+      dif("precoRetirada", l.precoRetirada || undefined, "Retirada", (v) => (v ? fmt(Number(v)) : "—"));
     dif("precoCusto", l.precoCusto, "Custo", (v) => fmt(Number(v) || 0));
     dif("estoqueMinimo", l.estoqueMinimo, "Mínimo");
     dif("unPorCaixa", l.unPorCaixa, "Un/cx");

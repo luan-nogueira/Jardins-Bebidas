@@ -24,6 +24,8 @@ export interface Produto {
   unPorCaixa: number;
   /** Preço de venda por unidade, em reais — a "Tabela 1", usada por padrão. */
   precoUn: number;
+  /** Preço pra levar embora (ex.: litrão R$ 8 na retirada, R$ 15 no local). Sem ele, vale precoUn. */
+  precoRetirada?: number;
   /** Preço alternativo (Tabela 2) — opcional, pra escolher ao montar o pedido. */
   precoTabela2?: number;
   /** Preço alternativo (Tabela 3) — opcional, pra escolher ao montar o pedido. */
@@ -86,6 +88,8 @@ export interface VendaItem {
   qtd: number;
   /** Preço travado no momento da venda. */
   precoUn: number;
+  /** Item vendido no preço de retirada. */
+  retirada?: boolean;
   /** Custo no momento da venda (pro lucro). */
   custoUn: number;
 }
@@ -114,6 +118,8 @@ export interface Venda {
   vencimento?: string;
   obs?: string;
   operador?: string;
+  /** Comanda externa: os produtos novos entram no preço de retirada. */
+  retirada?: boolean;
   abertaEm: string;
   /** Quando a venda conta nos relatórios e baixa o estoque. */
   finalizadaEm?: string;

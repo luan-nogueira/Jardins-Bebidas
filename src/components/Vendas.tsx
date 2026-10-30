@@ -13,6 +13,7 @@ import {
   ROTULO_FORMA,
   baixarEstoqueVenda,
   estornarEstoqueVenda,
+  precoDe,
   subtotalItens,
 } from "@/lib/vendas";
 import type {
@@ -29,7 +30,17 @@ import type {
    (as unidades dela: o carrinho e o estoque contam sempre em unidades).
    --------------------------------------------------------------------------- */
 
-export function SeletorProdutos({ aoEscolher }: { aoEscolher: (p: Produto, qtd?: number) => void }) {
+export function SeletorProdutos({
+  aoEscolher,
+  retirada = false,
+  aoMudarRetirada,
+}: {
+  aoEscolher: (p: Produto, qtd?: number) => void;
+  /** Mostra o preço de retirada nos cartões. */
+  retirada?: boolean;
+  /** Com isso aparece a chave "Consumo no local / Retirada". */
+  aoMudarRetirada?: (retirada: boolean) => void;
+}) {
   const { produtos, vendas } = useDados();
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -108,6 +119,7 @@ export function SeletorProdutos({ aoEscolher }: { aoEscolher: (p: Produto, qtd?:
 
   return (
     <div>
+      {aoMudarRetirada && <ChaveRetirada retirada={retirada} aoMudar={aoMudarRetirada} />}
       <div className="relative mb-2">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-texto-suave" />
         <input
@@ -143,6 +155,7 @@ export function SeletorProdutos({ aoEscolher }: { aoEscolher: (p: Produto, qtd?:
             <CartaoProduto
               key={p.id}
               produto={p}
+              preco={precoDe(p, retirada)}
               toques={toques.id === p.id ? toques.n : 0}
               aoEscolher={(qtd) => escolher(p, qtd)}
             />
@@ -153,12 +166,35 @@ export function SeletorProdutos({ aoEscolher }: { aoEscolher: (p: Produto, qtd?:
   );
 }
 
+/** Consumo no local (preço normal) ou retirada (preço de levar, quando o produto tem). */
+export function ChaveRetirada({ retirada, aoMudar }: { retirada: boolean; aoMudar: (retirada: boolean) => void }) {
+  return (
+    <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-superficie-2 p-1" role="group" aria-label="Tipo de venda">
+      {[false, true].map((r) => (
+        <button
+          key={String(r)}
+          type="button"
+          aria-pressed={retirada === r}
+          onClick={() => aoMudar(r)}
+          className={`h-9 rounded-lg text-sm font-bold transition ${
+            retirada === r ? "bg-superficie text-acento shadow-sm" : "text-texto-suave"
+          }`}
+        >
+          {r ? "Retirada" : "Consumo no local"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function CartaoProduto({
   produto: p,
+  preco,
   toques,
   aoEscolher,
 }: {
   produto: Produto;
+  preco: number;
   /** Muda a cada toque nesse produto — reinicia o "pulo" do ícone. */
   toques: number;
   aoEscolher: (qtd: number) => void;
@@ -198,7 +234,7 @@ function CartaoProduto({
         </span>
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 text-sm leading-tight font-semibold">{p.nome}</span>
-          <span className="mt-1 block font-black text-acento tabular-nums">{brl(p.precoUn)}</span>
+          <span className="mt-1 block font-black text-acento tabular-nums">{brl(preco)}</span>
         </span>
       </button>
 
@@ -219,7 +255,7 @@ function CartaoProduto({
             type="button"
             onClick={() => aoEscolher(p.unPorCaixa)}
             className="shrink-0 rounded-lg bg-acento/10 px-2 py-1.5 text-[11px] font-black text-acento transition hover:bg-acento hover:text-acento-texto active:scale-95"
-            title={`Adicionar 1 caixa (${p.unPorCaixa} un) · ${brl(p.precoUn * p.unPorCaixa)}`}
+            title={`Adicionar 1 caixa (${p.unPorCaixa} un) · ${brl(preco * p.unPorCaixa)}`}
             aria-label={`Adicionar 1 caixa de ${p.nome} (${p.unPorCaixa} unidades)`}
           >
             +cx {p.unPorCaixa}
@@ -244,8 +280,19 @@ export function ListaItens({
   somenteLeitura?: boolean;
 }) {
   const { produtos } = useDados();
-  const unPorCaixa = (produtoId: string) =>
-    produtos.find((p) => p.id === produtoId)?.unPorCaixa ?? 1;
+  const produtoDe = (produtoId: string) => produtos.find((p) => p.id === produtoId);
+  const unPorCaixa = (produtoId: string) => produtoDe(produtoId)?.unPorCaixa ?? 1;
+
+  /** Troca só esse item entre consumo no local e retirada. */
+  function trocarRetirada(i: number) {
+    const produto = produtoDe(itens[i].produtoId);
+    if (!aoMudar || !produto?.precoRetirada) return;
+    const retirada = !itens[i].retirada;
+    const novos = [...itens];
+    const { retirada: _, ...resto } = novos[i];
+    novos[i] = { ...resto, precoUn: precoDe(produto, retirada), ...(retirada && { retirada: true }) };
+    aoMudar(novos);
+  }
 
   function mudarQtd(i: number, qtd: number) {
     if (!aoMudar) return;
@@ -270,11 +317,25 @@ export function ListaItens({
     <ul className="divide-y divide-borda">
       {itens.map((item, i) => {
         const porCaixa = unPorCaixa(item.produtoId);
+        const temRetirada = !!produtoDe(item.produtoId)?.precoRetirada;
         return (
         <li key={`${item.produtoId}-${i}`} className="flex items-center gap-2 px-4 py-2.5">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{item.nome}</p>
             <p className="text-xs text-texto-suave tabular-nums">
+              {(temRetirada || item.retirada) &&
+                (somenteLeitura || !temRetirada ? (
+                  <span className="mr-1 font-bold">{item.retirada ? "Retirada" : "Local"} ·</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => trocarRetirada(i)}
+                    className="mr-1 rounded-md bg-superficie-2 px-1.5 py-0.5 font-bold text-texto ring-1 ring-borda"
+                    title="Trocar entre consumo no local e retirada"
+                  >
+                    {item.retirada ? "Retirada" : "Local"} ⇄
+                  </button>
+                ))}
               {brl(item.precoUn)} · {brl(item.qtd * item.precoUn)}
               {porCaixa > 1 && item.qtd >= porCaixa && (
                 <span className="font-bold text-acento"> · {caixasEUnidades(item.qtd, porCaixa)}</span>
