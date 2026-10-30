@@ -151,6 +151,8 @@ function FinanceiroPageInterno() {
   const [aberto, setAberto] = useState(false);
   const [salvandoConta, setSalvandoConta] = useState(false);
   const [excluindo, setExcluindo] = useState<ContaPagar | null>(null);
+  /** Conta cuja bolinha foi tocada — só muda depois de confirmar (toque sem querer ao rolar). */
+  const [confirmandoPago, setConfirmandoPago] = useState<ContaPagar | null>(null);
 
   function abrirNova() {
     setEditando(null);
@@ -368,7 +370,7 @@ function FinanceiroPageInterno() {
                 return (
                   <li key={c.id} className="flex items-center gap-3 px-4 py-3">
                     <button
-                      onClick={() => alternarPago(c)}
+                      onClick={() => setConfirmandoPago(c)}
                       className="shrink-0 text-texto-suave transition hover:text-acento"
                       aria-label={c.pago ? "Marcar como pendente" : "Marcar como paga"}
                     >
@@ -574,6 +576,43 @@ function FinanceiroPageInterno() {
         <p className="text-sm text-texto-suave">
           {excluindo && `Tem certeza que deseja excluir a conta "${excluindo.descricao}"?`}
         </p>
+      </Modal>
+
+      <Modal
+        aberto={!!confirmandoPago}
+        aoFechar={() => setConfirmandoPago(null)}
+        titulo={confirmandoPago?.pago ? "Voltar para pendente?" : "Marcar como paga?"}
+        rodape={
+          <>
+            <button className="btn-secundario" onClick={() => setConfirmandoPago(null)}>
+              Cancelar
+            </button>
+            <button
+              className="btn-primario"
+              onClick={async () => {
+                const c = confirmandoPago;
+                setConfirmandoPago(null);
+                if (c) await alternarPago(c);
+              }}
+            >
+              {confirmandoPago?.pago ? "Sim, não foi paga" : "Sim, paguei"}
+            </button>
+          </>
+        }
+      >
+        {confirmandoPago && (
+          <div className="space-y-2 text-sm">
+            <div className="flex items-baseline justify-between gap-3 rounded-xl bg-superficie-2 px-4 py-3">
+              <span className="min-w-0 truncate font-semibold">{confirmandoPago.descricao}</span>
+              <span className="shrink-0 text-lg font-black tabular-nums">{brl(confirmandoPago.valor)}</span>
+            </div>
+            <p className="text-texto-suave">
+              {confirmandoPago.pago
+                ? `Ela volta a ficar pendente, com vencimento em ${dataBR(confirmandoPago.vencimento)}, e sai das saídas do mês.`
+                : "Ela entra hoje nas saídas do mês, em Gastos."}
+            </p>
+          </div>
+        )}
       </Modal>
     </>
   );
