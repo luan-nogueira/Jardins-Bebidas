@@ -5,7 +5,7 @@ import { Minus, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { useDados, novoId } from "@/lib/store";
 import { ProdutoImagem } from "@/components/ProdutoImagem";
-import { brl, caixasEUnidades, hojeISO, normalizar, paraNumero, somarDias, telefoneBR } from "@/lib/format";
+import { brl, caixasEUnidades, hojeISO, normalizar, temPalavras, paraNumero, somarDias, telefoneBR } from "@/lib/format";
 import { compararCategorias, nivelEstoque } from "@/lib/calc";
 import { COR_NIVEL, visualCategoria } from "@/lib/categoriaVisual";
 import {
@@ -74,7 +74,7 @@ export function SeletorProdutos({ aoEscolher }: { aoEscolher: (p: Produto, qtd?:
       (p) =>
         (!categoria || (p.categoria || "Sem categoria") === categoria) &&
         (!termo ||
-          normalizar(p.nome).includes(termo) ||
+          temPalavras(p.nome, termo) ||
           p.codigoBarras === busca.trim() ||
           p.codigo === busca.trim()),
     ).sort(

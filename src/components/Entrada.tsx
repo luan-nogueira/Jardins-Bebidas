@@ -12,7 +12,7 @@ import {
 } from "@/components/Compras";
 import { useDados, novoId } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, hojeISO, normalizar, paraNumero, somarDias } from "@/lib/format";
+import { brl, hojeISO, normalizar, paraNumero, temPalavras, somarDias } from "@/lib/format";
 import type { EstoqueMovimento, Produto } from "@/lib/types";
 
 /*
@@ -84,7 +84,7 @@ function FormEntrada({ aoFechar }: { aoFechar: () => void }) {
     const termo = normalizar(busca);
     if (!termo) return [];
     return produtos
-      .filter((p) => p.ativo && normalizar(p.nome).includes(termo))
+      .filter((p) => p.ativo && temPalavras(p.nome, termo))
       .slice(0, 8);
   }, [produtos, busca]);
 

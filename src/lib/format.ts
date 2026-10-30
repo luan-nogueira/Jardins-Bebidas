@@ -42,6 +42,12 @@ export function hojeISO(): string {
 }
 
 /** Remove acentos e baixa a caixa, pra busca funcionar sem o usuário acentuar. */
+/** Busca de produto: cada palavra em qualquer parte do nome ("batata casa" acha "Batata da casa"). */
+export function temPalavras(texto: string, termo: string): boolean {
+  const alvo = normalizar(texto);
+  return normalizar(termo).split(/s+/).every((palavra) => alvo.includes(palavra));
+}
+
 export function normalizar(texto: string): string {
   return (texto || "")
     .normalize("NFD")
