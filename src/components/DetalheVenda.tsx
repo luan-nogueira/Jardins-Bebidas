@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui";
 import { ListaItens, ModalPagamento, useAcoesVenda } from "@/components/Vendas";
 import { useAuth } from "@/lib/auth";
+import { useDados } from "@/lib/store";
 import { brl, dataBR, dataHoraBR, hojeISO } from "@/lib/format";
 import {
   ROTULO_FORMA,
@@ -42,6 +43,8 @@ export function DetalheVenda({
 }) {
   const { permissoes } = useAuth();
   const { receber, cancelar } = useAcoesVenda();
+  const { removerVenda } = useDados();
+  const cancelada = venda.status === "CANCELADA";
   const [recebendo, setRecebendo] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -58,12 +61,12 @@ export function DetalheVenda({
         titulo={`${venda.tipo === "COMANDA" ? "Comanda" : "Venda"} ${numeroVenda(venda.numero)}`}
         rodape={
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {permissoes.excluir && venda.status !== "CANCELADA" ? (
+            {permissoes.excluir ? (
               <button
                 className="text-sm font-semibold text-red-600 hover:underline dark:text-red-400"
                 onClick={() => setCancelando(true)}
               >
-                Cancelar venda
+                {cancelada ? "Excluir de vez" : "Cancelar venda"}
               </button>
             ) : (
               <span />
@@ -157,7 +160,7 @@ export function DetalheVenda({
       <Modal
         aberto={cancelando}
         aoFechar={() => setCancelando(false)}
-        titulo="Cancelar venda"
+        titulo={cancelada ? "Excluir de vez" : "Cancelar venda"}
         rodape={
           <>
             <button className="btn-secundario" onClick={() => setCancelando(false)} disabled={ocupado}>
@@ -169,7 +172,8 @@ export function DetalheVenda({
               onClick={async () => {
                 setOcupado(true);
                 try {
-                  await cancelar(venda);
+                  if (cancelada) await removerVenda(venda.id);
+                  else await cancelar(venda);
                   setCancelando(false);
                   aoFechar();
                 } finally {
@@ -177,13 +181,15 @@ export function DetalheVenda({
                 }
               }}
             >
-              Cancelar venda
+              {cancelada ? "Excluir" : "Cancelar venda"}
             </button>
           </>
         }
       >
         <p className="text-sm text-texto-suave">
-          {venda.status === "FINALIZADA"
+          {cancelada
+            ? "Apaga esta venda cancelada do sistema. O estoque já foi devolvido quando ela foi cancelada."
+            : venda.status === "FINALIZADA"
             ? "Os itens voltam pro estoque e a venda sai dos relatórios. Os recebimentos ficam registrados na venda cancelada."
             : "A comanda é fechada sem mexer no estoque."}
         </p>

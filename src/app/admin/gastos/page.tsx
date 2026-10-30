@@ -155,6 +155,33 @@ function Gastos() {
   }, [contasPagar]);
   const bolsoAberto = doBolso.find((p) => p.nome === vendoBolso);
 
+  /** Categoria aberta no detalhe do gráfico ("Funcionários" → Serinho, Max, Alice). */
+  const [vendoGrupo, setVendoGrupo] = useState<string | null>(null);
+  const detalheGrupo = useMemo(() => {
+    if (!vendoGrupo) return null;
+    const mapa = new Map<string, { nome: string; total: number; dias: string[] }>();
+    for (const s of saidas) {
+      if (grupoSaida(s) !== vendoGrupo) continue;
+      const nome = s.descricao.trim() || vendoGrupo;
+      const chave = nome.toLocaleLowerCase("pt-BR");
+      const item = mapa.get(chave) ?? { nome, total: 0, dias: [] };
+      item.total += s.valor;
+      item.dias.push(s.dia);
+      mapa.set(chave, item);
+    }
+    const itens = [...mapa.values()].sort((a, b) => b.total - a.total);
+    return { itens, total: itens.reduce((s, i) => s + i.total, 0) };
+  }, [vendoGrupo, saidas]);
+
+  /** Descrições já usadas na categoria escolhida, pra repetir o nome igual (ex.: funcionário). */
+  const sugestoesDescricao = useMemo(() => {
+    const nomes = new Map<string, string>();
+    for (const c of contasPagar)
+      if (c.categoria === form.categoria && c.descricao && c.descricao !== c.categoria)
+        nomes.set(c.descricao.trim().toLocaleLowerCase("pt-BR"), c.descricao.trim());
+    return [...nomes.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [contasPagar, form.categoria]);
+
   // As do dia a dia ficam à mostra; as do mês (aluguel, luz…) atrás de "Ver todas".
   // Ao editar um gasto de categoria escondida, abre tudo pra ela aparecer marcada.
   const escondida = CATEGORIAS_GASTO.findIndex((c) => c.nome === form.categoria) >= CATEGORIAS_VISIVEIS;
@@ -480,10 +507,16 @@ function Gastos() {
             <input
               id="g-desc"
               className="campo h-10 text-base"
-              placeholder="Ex: Atacadão, carne do sábado"
+              placeholder={form.categoria === "Funcionários" ? "Nome do funcionário" : "Ex: Atacadão, carne do sábado"}
+              list="g-desc-sugestoes"
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
             />
+            <datalist id="g-desc-sugestoes">
+              {sugestoesDescricao.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
           </div>
 
           <div>
@@ -653,7 +686,7 @@ function Gastos() {
           )}
 
           <CartaoGrafico titulo="Pra onde foi o dinheiro" subtitulo="Saídas do mês por categoria">
-            <BarrasHorizontais barras={porCategoria} />
+            <BarrasHorizontais barras={porCategoria} aoClicar={setVendoGrupo} />
           </CartaoGrafico>
 
           <section>
@@ -723,6 +756,30 @@ function Gastos() {
           </section>
         </div>
       </div>
+
+      <Modal aberto={!!detalheGrupo} aoFechar={() => setVendoGrupo(null)} titulo={`${vendoGrupo ?? ""} · ${nomeMes(mes)}`}>
+        {detalheGrupo && (
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between rounded-xl bg-superficie-2 px-4 py-3">
+              <span className="text-sm font-semibold text-texto-suave">Total</span>
+              <span className="text-2xl font-black tabular-nums">{brl(detalheGrupo.total)}</span>
+            </div>
+            <ul className="divide-y divide-borda">
+              {detalheGrupo.itens.map((i) => (
+                <li key={i.nome} className="flex items-center gap-3 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{i.nome}</span>
+                    <span className="block truncate text-xs text-texto-suave">
+                      {i.dias.length} lanç. · {[...i.dias].sort().map((d) => dataBR(d).slice(0, 5)).join(", ")}
+                    </span>
+                  </span>
+                  <span className="font-bold tabular-nums">{brl(i.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         aberto={!!bolsoAberto}

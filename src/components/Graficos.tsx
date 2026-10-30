@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { brl } from "@/lib/format";
 import type { Barra } from "@/lib/relatorios";
 
@@ -86,10 +87,13 @@ export function BarrasHorizontais({
   barras,
   formatar = brl,
   limite,
+  aoClicar,
 }: {
   barras: Barra[];
   formatar?: (v: number) => string;
   limite?: number;
+  /** Com isso, cada barra vira botão (abre o detalhe da categoria). */
+  aoClicar?: (chave: string) => void;
 }) {
   if (barras.length === 0) return <SemDados />;
   const total = barras.reduce((s, b) => s + b.valor, 0);
@@ -99,10 +103,13 @@ export function BarrasHorizontais({
     <ul className="space-y-3">
       {visiveis.map((b) => {
         const pct = total > 0 ? (b.valor / total) * 100 : 0;
-        return (
-          <li key={b.chave} title={`${b.rotulo}: ${formatar(b.valor)} (${pct.toFixed(1)}%)`}>
+        const conteudo = (
+          <>
             <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate font-semibold">{b.rotulo}</span>
+              <span className="min-w-0 truncate font-semibold">
+                {b.rotulo}
+                {aoClicar && <ChevronRight className="ml-0.5 inline h-3.5 w-3.5 align-[-2px] text-texto-suave" />}
+              </span>
               <span className="shrink-0 tabular-nums">
                 <strong>{formatar(b.valor)}</strong>
                 <span className="ml-1.5 text-xs text-texto-suave">{pct.toFixed(1).replace(".", ",")}%</span>
@@ -114,6 +121,21 @@ export function BarrasHorizontais({
                 style={{ width: `${max > 0 ? (b.valor / max) * 100 : 0}%` }}
               />
             </div>
+          </>
+        );
+        return (
+          <li key={b.chave} title={`${b.rotulo}: ${formatar(b.valor)} (${pct.toFixed(1)}%)`}>
+            {aoClicar ? (
+              <button
+                type="button"
+                onClick={() => aoClicar(b.chave)}
+                className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 py-1 text-left transition hover:bg-superficie-2"
+              >
+                {conteudo}
+              </button>
+            ) : (
+              conteudo
+            )}
           </li>
         );
       })}
