@@ -44,7 +44,9 @@ import {
   saidasDoMes,
   type Saida,
 } from "@/lib/gastos";
-import type { ContaPagar } from "@/lib/types";
+import { FORMAS } from "@/lib/vendas";
+import { novaVenda } from "@/components/Vendas";
+import type { ContaPagar, FormaPagamento } from "@/lib/types";
 
 export default function GastosPage() {
   return (
@@ -65,6 +67,8 @@ function somarMes(mes: string, n: number) {
 }
 
 interface Formulario {
+  /** Dinheiro que entrou (ex.: vendas que não passaram pelo Vender) em vez de gasto. */
+  entrada: boolean;
   valor: string;
   categoria: string;
   /** Nome do fornecedor, só na categoria Fornecedores. */
@@ -83,6 +87,7 @@ interface Formulario {
 const CATEGORIAS_VISIVEIS = 8;
 
 const novoForm = (): Formulario => ({
+  entrada: false,
   valor: "",
   categoria: "",
   fornecedor: "",
@@ -93,8 +98,17 @@ const novoForm = (): Formulario => ({
 });
 
 function Gastos() {
-  const { contasPagar, movimentos, vendas, fornecedores, salvarContaPagar, removerContaPagar, salvarFornecedor } =
-    useDados();
+  const {
+    contasPagar,
+    movimentos,
+    vendas,
+    fornecedores,
+    salvarContaPagar,
+    removerContaPagar,
+    salvarFornecedor,
+    salvarVenda,
+    proximoNumeroVenda,
+  } = useDados();
   const { usuario, perfil } = useAuth();
   const meuNome = perfil?.nome || usuario?.email?.split("@")[0] || "Sócio";
 
@@ -233,8 +247,12 @@ function Gastos() {
     e.preventDefault();
     const valor = paraNumero(form.valor);
     if (valor <= 0) {
-      setErro("Digite o valor do gasto.");
+      setErro(form.entrada ? "Digite o valor que entrou." : "Digite o valor do gasto.");
       campoValor.current?.focus();
+      return;
+    }
+    if (form.entrada) {
+      await lancarEntrada(valor);
       return;
     }
     if (!form.categoria) {
@@ -302,10 +320,51 @@ function Gastos() {
     }
   }
 
+  /**
+   * Entrada à mão vira uma venda finalizada de um item só, sem produto do
+   * cadastro (não mexe no estoque). Assim soma no Entrou, no Painel, nos
+   * Relatórios e no Financeiro. Pra desfazer, cancela a venda no Vender.
+   */
+  async function lancarEntrada(valor: number) {
+    setErro("");
+    setSalvando(true);
+    try {
+      const agora = new Date().toISOString();
+      const quando = form.dia === hojeISO() ? agora : new Date(`${form.dia}T12:00:00`).toISOString();
+      const nome = form.descricao.trim() || "Entrada manual";
+      const venda = novaVenda(
+        {
+          tipo: "BALCAO",
+          // shortcut: custo 0, então o lucro dos relatórios conta essa entrada inteira como lucro.
+          itens: [{ produtoId: "entrada-manual", nome, categoria: "Entrada manual", qtd: 1, precoUn: valor, custoUn: 0 }],
+          operador: usuario?.email ?? undefined,
+          obs: "Lançada à mão em Gastos",
+        },
+        proximoNumeroVenda(),
+      );
+      await salvarVenda({
+        ...venda,
+        status: "FINALIZADA",
+        abertaEm: quando,
+        finalizadaEm: quando,
+        pagamentos: [{ id: novoId(), forma: form.forma as FormaPagamento, valor, data: quando }],
+      });
+      setFeito(`${brl(valor)} de entrada lançado`);
+      setTimeout(() => setFeito(""), 3000);
+      setForm({ ...novoForm(), entrada: true });
+      if (mesDe(form.dia) !== mes) setMes(mesDe(form.dia));
+    } catch {
+      setErro("Não salvou. Confira a internet e tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   function editar(c: ContaPagar) {
     setEditando(c);
     setErro("");
     setForm({
+      entrada: false,
       valor: String(c.valor).replace(".", ","),
       categoria: c.categoria ?? "Outros",
       fornecedor: c.categoria === CATEGORIA_FORNECEDOR ? (c.fornecedorNome ?? "") : "",
@@ -375,7 +434,7 @@ function Gastos() {
         {/* Lançar */}
         <form onSubmit={lancar} className="card space-y-3 p-3.5 sm:p-4 xl:sticky xl:top-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold">{editando ? "Editar gasto" : "Lançar gasto"}</h2>
+            <h2 className="font-bold">{editando ? "Editar gasto" : form.entrada ? "Lançar entrada" : "Lançar gasto"}</h2>
             {editando && (
               <button
                 type="button"
@@ -389,6 +448,26 @@ function Gastos() {
               </button>
             )}
           </div>
+
+          {!editando && (
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-superficie-2 p-1">
+              {[false, true].map((entrada) => (
+                <button
+                  key={String(entrada)}
+                  type="button"
+                  aria-pressed={form.entrada === entrada}
+                  onClick={() =>
+                    setForm({ ...form, entrada, forma: entrada && form.forma === "BOLETO" ? "PIX" : form.forma })
+                  }
+                  className={`h-9 rounded-lg text-sm font-bold transition ${
+                    form.entrada === entrada ? "bg-superficie text-acento shadow-sm" : "text-texto-suave"
+                  }`}
+                >
+                  {entrada ? "Entrou" : "Saiu"}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div>
             <label className="rotulo" htmlFor="g-valor">Valor</label>
@@ -408,6 +487,7 @@ function Gastos() {
             </div>
           </div>
 
+          {!form.entrada && (
           <div>
             <span className="rotulo">Com o quê?</span>
             <div className="grid grid-cols-3 gap-1.5">
@@ -455,8 +535,9 @@ function Gastos() {
               )}
             </div>
           </div>
+          )}
 
-          {form.categoria === CATEGORIA_FORNECEDOR && (
+          {!form.entrada && form.categoria === CATEGORIA_FORNECEDOR && (
             <div>
               <span className="rotulo">Qual fornecedor?</span>
               <div className="flex flex-wrap gap-1.5">
@@ -510,8 +591,14 @@ function Gastos() {
             <input
               id="g-desc"
               className="campo h-10 text-base"
-              placeholder={form.categoria === "Funcionários" ? "Nome do funcionário" : "Ex: Atacadão, carne do sábado"}
-              list="g-desc-sugestoes"
+              placeholder={
+                form.entrada
+                  ? "Ex: Vendas do dia"
+                  : form.categoria === "Funcionários"
+                    ? "Nome do funcionário"
+                    : "Ex: Atacadão, carne do sábado"
+              }
+              list={form.entrada ? undefined : "g-desc-sugestoes"}
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
             />
@@ -523,9 +610,9 @@ function Gastos() {
           </div>
 
           <div>
-            <span className="rotulo">Pagou como?</span>
-            <div className="grid grid-cols-5 gap-1.5">
-              {FORMAS_GASTO.map((f) => (
+            <span className="rotulo">{form.entrada ? "Recebeu como?" : "Pagou como?"}</span>
+            <div className={`grid gap-1.5 ${form.entrada ? "grid-cols-4" : "grid-cols-5"}`}>
+              {(form.entrada ? FORMAS : FORMAS_GASTO).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -540,6 +627,7 @@ function Gastos() {
             </div>
           </div>
 
+          {!form.entrada && (
           <div>
             <span className="rotulo">Saiu de onde?</span>
             <div className="grid grid-cols-2 gap-1.5">
@@ -557,6 +645,7 @@ function Gastos() {
               ))}
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div className="min-w-0">
@@ -564,12 +653,14 @@ function Gastos() {
               <input
                 id="g-dia"
                 type="date"
-                className="campo h-10"
+                // iPhone: o campo de data nativo tem largura mínima própria e vaza pra direita da tela.
+                className="campo h-10 min-w-0 appearance-none text-left [&::-webkit-date-and-time-value]:text-left"
                 value={form.dia}
                 max={hojeISO()}
                 onChange={(e) => setForm({ ...form, dia: e.target.value || hojeISO() })}
               />
             </div>
+            {!form.entrada && (
             <div className="min-w-0">
               <span className="rotulo">Nota / comprovante</span>
               {form.comprovante ? (
@@ -598,6 +689,7 @@ function Gastos() {
                 </label>
               )}
             </div>
+            )}
           </div>
 
           {erro && (
@@ -607,7 +699,7 @@ function Gastos() {
           )}
 
           <button type="submit" className="btn-primario h-12 w-full text-base" disabled={salvando || lendoFoto}>
-            {salvando ? "Salvando…" : editando ? "Salvar alteração" : "Lançar gasto"}
+            {salvando ? "Salvando…" : editando ? "Salvar alteração" : form.entrada ? "Lançar entrada" : "Lançar gasto"}
           </button>
           {editando && (
             <button type="button" onClick={excluir} className="btn-perigo w-full">
