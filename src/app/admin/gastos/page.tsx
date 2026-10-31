@@ -159,23 +159,26 @@ function Gastos() {
   const [vendoGrupo, setVendoGrupo] = useState<string | null>(null);
   const detalheGrupo = useMemo(() => {
     if (!vendoGrupo) return null;
-    const mapa = new Map<string, { nome: string; total: number; dias: string[] }>();
+    const mapa = new Map<string, { nome: string; total: number; lancs: { id: string; dia: string; valor: number }[] }>();
     for (const s of saidas) {
       if (grupoSaida(s) !== vendoGrupo) continue;
       const nome = s.descricao.trim() || vendoGrupo;
       const chave = nome.toLocaleLowerCase("pt-BR");
-      const item = mapa.get(chave) ?? { nome, total: 0, dias: [] };
+      const item = mapa.get(chave) ?? { nome, total: 0, lancs: [] };
       item.total += s.valor;
-      item.dias.push(s.dia);
+      item.lancs.push({ id: s.id, dia: s.dia, valor: s.valor });
       mapa.set(chave, item);
     }
     const itens = [...mapa.values()].sort((a, b) => b.total - a.total);
+    for (const i of itens) i.lancs.sort((a, b) => a.dia.localeCompare(b.dia));
     return { itens, total: itens.reduce((s, i) => s + i.total, 0) };
   }, [vendoGrupo, saidas]);
 
   /** Descrições já usadas na categoria escolhida, pra repetir o nome igual (ex.: funcionário). */
   const sugestoesDescricao = useMemo(() => {
     const nomes = new Map<string, string>();
+    for (const s of CATEGORIAS_GASTO.find((c) => c.nome === form.categoria)?.sugestoes ?? [])
+      nomes.set(s.toLocaleLowerCase("pt-BR"), s);
     for (const c of contasPagar)
       if (c.categoria === form.categoria && c.descricao && c.descricao !== c.categoria)
         nomes.set(c.descricao.trim().toLocaleLowerCase("pt-BR"), c.descricao.trim());
@@ -766,14 +769,22 @@ function Gastos() {
             </div>
             <ul className="divide-y divide-borda">
               {detalheGrupo.itens.map((i) => (
-                <li key={i.nome} className="flex items-center gap-3 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{i.nome}</span>
-                    <span className="block truncate text-xs text-texto-suave">
-                      {i.dias.length} lanç. · {[...i.dias].sort().map((d) => dataBR(d).slice(0, 5)).join(", ")}
+                <li key={i.nome} className="py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{i.nome}</span>
+                      <span className="block text-xs text-texto-suave">{i.lancs.length} lanç.</span>
                     </span>
-                  </span>
-                  <span className="font-bold tabular-nums">{brl(i.total)}</span>
+                    <span className="font-bold tabular-nums">{brl(i.total)}</span>
+                  </div>
+                  <ul className="mt-1.5 space-y-0.5 border-l-2 border-borda pl-3 text-xs text-texto-suave">
+                    {i.lancs.map((l) => (
+                      <li key={l.id} className="flex justify-between tabular-nums">
+                        <span>{dataBR(l.dia).slice(0, 5)}</span>
+                        <span>{brl(l.valor)}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>

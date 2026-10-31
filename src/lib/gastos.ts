@@ -3,9 +3,11 @@ import {
   Fuel,
   HandCoins,
   Home,
+  Landmark,
   Lightbulb,
   Package,
   PackageOpen,
+  PiggyBank,
   Receipt,
   ShoppingBasket,
   Snowflake,
@@ -30,7 +32,7 @@ import type { ContaPagar, EstoqueMovimento, FormaPagamento, Venda } from "./type
  * Mercadoria pra revenda NÃO entra aqui: vai por Entradas, que dá entrada
  * no estoque. A prestação de contas soma as duas coisas.
  */
-export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon }[] = [
+export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; sugestoes?: string[] }[] = [
   { nome: "Fornecedores", Icone: Truck },
   { nome: "Mantimentos", Icone: ShoppingBasket },
   { nome: "Carnes", Icone: Beef },
@@ -45,6 +47,8 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon }[] = [
   { nome: "Manutenção", Icone: Wrench },
   { nome: "Impostos e taxas", Icone: Receipt },
   { nome: "Retirada de sócio", Icone: HandCoins },
+  { nome: "Patrimônio", Icone: Landmark, sugestoes: ["Carro", "Caixas vazias", "Cobertura", "TV", "Toldo"] },
+  { nome: "Investimento", Icone: PiggyBank, sugestoes: ["Consórcio"] },
   { nome: "Outros", Icone: Package },
 ];
 
