@@ -148,6 +148,9 @@
   --barra:       #4a230f;
   --barra-2:     #2c1307;
   --barra-texto: #fdebd3;
+  /* Fluxo de caixa: entrou x saiu (validados pra daltonismo no claro e no escuro). */
+  --entrou:      #0f9f6e;
+  --saiu:        #e3510f;
 
   /* Sombras puxando pro marrom (sombra cinza fica "suja" no creme). */
   --sombra-card:  0 1px 2px rgb(74 35 15 / 0.05), 0 4px 14px -6px rgb(74 35 15 / 0.08);
@@ -173,6 +176,8 @@
   --barra:       #1a0f08;
   --barra-2:     #0e0703;
   --barra-texto: #fdebd3;
+  --entrou:      #22a87a;
+  --saiu:        #e0661f;
 
   --sombra-card:  inset 0 1px 0 rgb(255 255 255 / 0.03), 0 6px 20px -10px rgb(0 0 0 / 0.7);
   --sombra-alta:  inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -14px rgb(0 0 0 / 0.85);
@@ -194,6 +199,8 @@
     --barra:       #1a0f08;
     --barra-2:     #0e0703;
     --barra-texto: #fdebd3;
+    --entrou:      #22a87a;
+    --saiu:        #e0661f;
 
     --sombra-card:  inset 0 1px 0 rgb(255 255 255 / 0.03), 0 6px 20px -10px rgb(0 0 0 / 0.7);
     --sombra-alta:  inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px -14px rgb(0 0 0 / 0.85);

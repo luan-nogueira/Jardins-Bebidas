@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowLeftRight,
   BarChart3,
   Boxes,
   ClipboardList,
@@ -37,6 +38,7 @@ const ITENS = [
   { href: "/admin/comandas", rotulo: "Comandas", Icone: ClipboardList, chave: "comandas" },
   { href: "/admin/relatorios", rotulo: "Relatórios", Icone: BarChart3, chave: "relatorios" },
   { href: "/admin/financeiro", rotulo: "Financeiro", Icone: Wallet, chave: "financeiro" },
+  { href: "/admin/fluxo", rotulo: "Fluxo de caixa", Icone: ArrowLeftRight, chave: "financeiro" },
   { href: "/admin/gastos", rotulo: "Gastos", Icone: Receipt, chave: "financeiro" },
   { href: "/admin/estoque", rotulo: "Estoque", Icone: Boxes, chave: "estoque" },
   { href: "/admin/compras", rotulo: "Entradas", Icone: ShoppingBag, chave: "estoque" },

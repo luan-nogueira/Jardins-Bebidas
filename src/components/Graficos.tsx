@@ -88,10 +88,13 @@ export function BarrasHorizontais({
   formatar = brl,
   limite,
   aoClicar,
+  cor,
 }: {
   barras: Barra[];
   formatar?: (v: number) => string;
   limite?: number;
+  /** Cor das barras (CSS); sem ela, o laranja do acento. */
+  cor?: string;
   /** Com isso, cada barra vira botão (abre o detalhe da categoria). */
   aoClicar?: (chave: string) => void;
 }) {
@@ -118,7 +121,7 @@ export function BarrasHorizontais({
             <div className="h-2 overflow-hidden rounded-full bg-superficie-2">
               <div
                 className="h-full rounded-full bg-acento/85"
-                style={{ width: `${max > 0 ? (b.valor / max) * 100 : 0}%` }}
+                style={{ width: `${max > 0 ? (b.valor / max) * 100 : 0}%`, ...(cor && { background: cor }) }}
               />
             </div>
           </>
