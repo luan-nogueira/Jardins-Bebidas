@@ -12,6 +12,7 @@ import { EMPRESA } from "@/lib/empresa";
 import {
   noPeriodo,
   entradasESaidas,
+  perdasNoPeriodo,
   porCategoria,
   porCliente,
   porForma,
@@ -49,7 +50,7 @@ export default function RelatoriosPage() {
 }
 
 function Relatorios() {
-  const { vendas, movimentos } = useDados();
+  const { vendas, movimentos, produtoPorId } = useDados();
   const { permissoes } = useAuth();
   const custo = permissoes.verCusto;
   const [de, setDe] = useState(() => hojeISO().slice(0, 8) + "01");
@@ -75,6 +76,15 @@ function Relatorios() {
       valorComprado: t.valorComprado + m.valorComprado,
     }),
     { entrou: 0, vendeu: 0, perdas: 0, ajustes: 0, valorComprado: 0 },
+  );
+
+  const perdas = useMemo(
+    () => perdasNoPeriodo(movimentos, de, ate, produtoPorId),
+    [movimentos, de, ate, produtoPorId],
+  );
+  const totPerdas = perdas.reduce(
+    (t, p) => ({ qtd: t.qtd + p.qtd, custo: t.custo + p.custo, venda: t.venda + p.venda }),
+    { qtd: 0, custo: 0, venda: 0 },
   );
 
   const produtosVisiveis = produtos.filter(
@@ -290,6 +300,71 @@ function Relatorios() {
                     <td className="px-3 py-2 text-right">
                       {num(totEstoque.entrou - totEstoque.vendeu - totEstoque.perdas + totEstoque.ajustes)}
                     </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </section>
+
+        {/* Perdas e quebras */}
+        <section className="card overflow-hidden">
+          <div className="flex flex-wrap items-end justify-between gap-2 border-b border-borda px-4 py-3">
+            <div>
+              <h2 className="text-sm font-bold">Perdas e quebras</h2>
+              <p className="text-xs text-texto-suave">O que quebrou, venceu ou sumiu no período e quanto isso custou</p>
+            </div>
+            {perdas.length > 0 && (
+              <p className="text-right text-xs text-texto-suave">
+                {num(totPerdas.qtd)} un
+                {custo && (
+                  <>
+                    {" · custo "}
+                    <strong className="text-sm text-red-600 dark:text-red-400">{brl(totPerdas.custo)}</strong>
+                  </>
+                )}
+                {" · deixou de vender "}
+                <strong className="text-sm">{brl(totPerdas.venda)}</strong>
+              </p>
+            )}
+          </div>
+          <div className="max-h-[420px] overflow-auto">
+            <table className="w-full text-sm tabular-nums">
+              <thead className="sticky top-0 bg-superficie-2 text-[11px] tracking-wide text-texto-suave uppercase">
+                <tr>
+                  <th className="px-3 py-2 text-left">Data</th>
+                  <th className="px-3 py-2 text-left">Produto</th>
+                  <th className="px-3 py-2 text-right">Qtd</th>
+                  {custo && <th className="px-3 py-2 text-right">Custo</th>}
+                  <th className="px-3 py-2 text-right">Preço de venda</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-borda">
+                {perdas.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-8 text-center text-texto-suave">Nenhuma perda no período.</td>
+                  </tr>
+                )}
+                {perdas.map((p) => (
+                  <tr key={p.id}>
+                    <td className="px-3 py-2 whitespace-nowrap text-texto-suave">{dataBR(p.data).slice(0, 5)}</td>
+                    <td className="px-3 py-2">
+                      <span className="font-semibold">{p.nome}</span>
+                      {p.obs && <span className="block text-[11px] text-texto-suave">{p.obs}</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold">{num(p.qtd)}</td>
+                    {custo && <td className="px-3 py-2 text-right whitespace-nowrap text-red-600 dark:text-red-400">{brl(p.custo)}</td>}
+                    <td className="px-3 py-2 text-right whitespace-nowrap">{brl(p.venda)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {perdas.length > 0 && (
+                <tfoot className="sticky bottom-0 border-t-2 border-borda-forte bg-superficie font-black">
+                  <tr>
+                    <td className="px-3 py-2" colSpan={2}>Total ({perdas.length} lançamento(s))</td>
+                    <td className="px-3 py-2 text-right">{num(totPerdas.qtd)}</td>
+                    {custo && <td className="px-3 py-2 text-right whitespace-nowrap">{brl(totPerdas.custo)}</td>}
+                    <td className="px-3 py-2 text-right whitespace-nowrap">{brl(totPerdas.venda)}</td>
                   </tr>
                 </tfoot>
               )}

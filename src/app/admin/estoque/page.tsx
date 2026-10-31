@@ -17,6 +17,7 @@ import {
 import { numeroVenda } from "@/lib/vendas";
 import { somarDias } from "@/lib/format";
 import Link from "next/link";
+import { ModalPlanilha } from "@/components/ModalPlanilha";
 import {
   AlertTriangle,
   ArrowDown,
@@ -24,6 +25,7 @@ import {
   Boxes,
   ChevronRight,
   ClipboardCheck,
+  FileSpreadsheet,
   PackageMinus,
   Pencil,
   Plus,
@@ -74,6 +76,9 @@ function EstoquePageInterno() {
   const [produtoHistorico, setProdutoHistorico] = useState<Produto | null>(null);
   // Qual lançamento está aberto: contar (ajuste) ou perda/quebra.
   const [lancando, setLancando] = useState<"AJUSTE" | "PERDA" | null>(null);
+  /** Produto aberto direto no Contar (botão da linha), sem precisar buscar. */
+  const [contando, setContando] = useState<string | null>(null);
+  const [planilhaAberta, setPlanilhaAberta] = useState(false);
   const [limpandoOrfaos, setLimpandoOrfaos] = useState(false);
 
 
@@ -207,6 +212,13 @@ function EstoquePageInterno() {
               <PackageMinus className="h-4 w-4" />
               Perda / quebra
             </button>
+            {/* A planilha também muda preço e mostra custo: só pra quem mexe em produtos. */}
+            {permissoes.produtos && (
+              <button type="button" onClick={() => setPlanilhaAberta(true)} className="btn-secundario text-sm">
+                <FileSpreadsheet className="h-4 w-4" />
+                Planilha
+              </button>
+            )}
             <Link href="/admin/compras" className="btn-secundario text-sm">
               <Plus className="h-4 w-4" />
               Entrada (compra)
@@ -389,6 +401,7 @@ function EstoquePageInterno() {
                         {permissoes.verCusto && <th className="px-3 py-2 text-right">Custo</th>}
                         <th className="px-3 py-2 text-right">Venda</th>
                         {permissoes.verCusto && <th className="px-3 py-2 text-right">Parado (custo)</th>}
+                        <th className="w-20" />
                         <th className="w-8" />
                       </tr>
                     </thead>
@@ -437,6 +450,19 @@ function EstoquePageInterno() {
                                 {p.precoCusto && p.estoqueUn > 0 ? brl(p.precoCusto * p.estoqueUn) : <span className="text-texto-suave">—</span>}
                               </td>
                             )}
+                            <td className="px-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setContando(p.id);
+                                }}
+                                className="btn-secundario px-2.5 py-1 text-xs"
+                              >
+                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                Contar
+                              </button>
+                            </td>
                             <td className="pr-3 text-texto-suave">
                               <ChevronRight className="h-4 w-4" />
                             </td>
@@ -452,11 +478,11 @@ function EstoquePageInterno() {
                     const negativo = estoqueNegativo(p);
                     const baixo = estoqueBaixo(p);
                     return (
-                      <li key={p.id}>
+                      <li key={p.id} className="flex items-center">
                         <button
                           type="button"
                           onClick={() => setProdutoHistorico(p)}
-                          className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-superficie-2"
+                          className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left transition hover:bg-superficie-2"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="truncate font-semibold">{p.nome}</p>
@@ -489,7 +515,14 @@ function EstoquePageInterno() {
                               </span>
                             )}
                           </div>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-texto-suave" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setContando(p.id)}
+                          className="mx-2 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-borda text-acento hover:bg-superficie-2"
+                          aria-label={`Contar ${p.nome}`}
+                        >
+                          <ClipboardCheck className="h-4 w-4" />
                         </button>
                       </li>
                     );
@@ -516,6 +549,10 @@ function EstoquePageInterno() {
       {lancando && (
         <ModalNovoMovimento aberto tipos={[lancando]} aoFechar={() => setLancando(null)} />
       )}
+      {contando && (
+        <ModalNovoMovimento aberto tipos={["AJUSTE"]} produtoInicial={contando} aoFechar={() => setContando(null)} />
+      )}
+      <ModalPlanilha aberto={planilhaAberta} aoFechar={() => setPlanilhaAberta(false)} />
     </>
   );
 }

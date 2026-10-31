@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
@@ -10,7 +10,7 @@ import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/co
 import { DetalheVenda } from "@/components/DetalheVenda";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, dataHoraBR, paraCampo, paraNumero } from "@/lib/format";
+import { brl, dataHoraBR } from "@/lib/format";
 import { adicionarItem, numeroVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import type { Venda, VendaItem } from "@/lib/types";
 
@@ -36,13 +36,6 @@ function VerComanda() {
   const [fechando, setFechando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const [desconto, setDesconto] = useState("");
-
-  useEffect(() => {
-    if (comanda) setDesconto(paraCampo(comanda.desconto));
-    // só ao abrir a comanda
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comanda?.id]);
 
   if (carregando) return <p className="p-6 text-sm text-texto-suave">Carregando…</p>;
   if (!comanda) {
@@ -69,12 +62,6 @@ function VerComanda() {
   async function mudarRetirada(retirada: boolean) {
     const { retirada: _, ...resto } = c;
     await salvarVenda({ ...resto, ...(retirada && { retirada: true }), atualizadoEm: new Date().toISOString() });
-  }
-
-  async function salvarDesconto() {
-    const valor = Math.min(subtotal, Math.max(0, paraNumero(desconto)));
-    if (valor === c.desconto) return;
-    await salvarVenda({ ...c, desconto: valor, atualizadoEm: new Date().toISOString() });
   }
 
   return (
@@ -124,18 +111,6 @@ function VerComanda() {
 
         <aside>
           <div className="card sticky top-4 space-y-3 p-4">
-            <div className="flex items-center gap-3">
-              <label className="rotulo mb-0 shrink-0" htmlFor="desc-c">Desconto</label>
-              <input
-                id="desc-c"
-                className="campo h-9 py-1 text-right tabular-nums"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={desconto}
-                onChange={(e) => setDesconto(e.target.value)}
-                onBlur={salvarDesconto}
-              />
-            </div>
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-texto-suave">
                 {c.itens.reduce((s, i) => s + i.qtd, 0)} itens
@@ -146,16 +121,13 @@ function VerComanda() {
             <button
               className="btn-primario w-full"
               disabled={c.itens.length === 0}
-              onClick={async () => {
-                await salvarDesconto();
-                setFechando(true);
-              }}
+              onClick={() => setFechando(true)}
             >
               Finalizar comanda
             </button>
             <p className="text-xs text-texto-suave">
               Ao finalizar, os itens saem do estoque. Dá pra receber tudo, parte, ou
-              deixar a prazo com data de vencimento.
+              deixar a prazo com data de vencimento. O desconto (R$ ou %) é dado na hora de finalizar.
             </p>
             {permissoes.excluir && (
               <button

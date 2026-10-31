@@ -364,9 +364,12 @@ export function ModalNovoMovimento({
   aberto,
   aoFechar,
   tipos = ["COMPRA", "AJUSTE", "PERDA"],
+  produtoInicial = "",
 }: {
   aberto: boolean;
   aoFechar: () => void;
+  /** Já abre com esse produto escolhido (botão Contar da lista do estoque). */
+  produtoInicial?: string;
   /** Só um tipo = esconde a escolha (a aba Compras só lança compra). */
   tipos?: EstoqueOrigem[];
 }) {
@@ -386,7 +389,7 @@ export function ModalNovoMovimento({
 
   // Form do lançamento manual
   const [tipoMovimento, setTipoMovimento] = useState<EstoqueOrigem>(tipos[0]);
-  const [produtoId, setProdutoId] = useState("");
+  const [produtoId, setProdutoId] = useState(produtoInicial);
   const [fornecedorId, setFornecedorId] = useState("");
   // Cadastro rápido de fornecedor direto na compra, só com o nome.
   const [novoFornecedor, setNovoFornecedor] = useState<string | null>(null);
@@ -534,7 +537,8 @@ export function ModalNovoMovimento({
         });
       }
 
-      let custoUn: number | undefined = undefined;
+      // Na perda guarda o custo do dia, pro relatório de perdas valer o preço da época.
+      let custoUn: number | undefined = tipoMovimento === "PERDA" ? produto.precoCusto || undefined : undefined;
       if (compra && custoTotal) {
         custoUn = Number(custoTotal) / qtd;
       }

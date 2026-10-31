@@ -17,7 +17,7 @@ import { DetalheVenda } from "@/components/DetalheVenda";
 import { MiniBrinde } from "@/components/Brinde";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, horaBR, hojeISO, paraNumero } from "@/lib/format";
+import { brl, horaBR, hojeISO } from "@/lib/format";
 import {
   adicionarItem,
   diaDaVenda,
@@ -45,7 +45,6 @@ function VendasInterno() {
   const [itens, setItens] = useState<VendaItem[]>([]);
   /** Preço de retirada nos produtos que entram daqui pra frente. */
   const [retirada, setRetirada] = useState(false);
-  const [desconto, setDesconto] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [pagando, setPagando] = useState(false);
@@ -53,9 +52,7 @@ function VendasInterno() {
   const [aviso, setAviso] = useState<{ texto: string; brinde: boolean } | null>(null);
   const [vendo, setVendo] = useState<Venda | null>(null);
 
-  const subtotal = subtotalItens(itens);
-  const valorDesconto = Math.min(subtotal, paraNumero(desconto));
-  const total = Math.max(0, subtotal - valorDesconto);
+  const total = subtotalItens(itens);
   const qtdItens = itens.reduce((s, i) => s + i.qtd, 0);
 
   // Atalho do caixa no computador: F2 = Cobrar.
@@ -79,7 +76,6 @@ function VendasInterno() {
 
   function limpar() {
     setItens([]);
-    setDesconto("");
     setCliente(null);
     setRetirada(false);
     setCarrinhoAberto(false);
@@ -96,7 +92,6 @@ function VendasInterno() {
       {
         tipo: "BALCAO",
         itens,
-        desconto: valorDesconto,
         clienteId: cliente?.id,
         clienteNome: cliente?.nome,
         operador: usuario?.email ?? undefined,
@@ -122,7 +117,6 @@ function VendasInterno() {
     await salvarVenda({
       ...comanda,
       itens: novos,
-      desconto: comanda.desconto + valorDesconto,
       atualizadoEm: new Date().toISOString(),
     });
     setEscolhendoComanda(false);
@@ -135,7 +129,6 @@ function VendasInterno() {
       {
         tipo: "COMANDA",
         itens,
-        desconto: valorDesconto,
         clienteId: c.id,
         clienteNome: c.nome,
         operador: usuario?.email ?? undefined,
@@ -155,23 +148,9 @@ function VendasInterno() {
       {itens.length > 0 && (
         <div className="space-y-3 border-t border-borda px-4 py-3">
           <SeletorCliente clienteId={cliente?.id ?? ""} aoMudar={setCliente} />
-          <div className="flex items-center gap-3">
-            <label className="rotulo mb-0 shrink-0" htmlFor="desc">
-              Desconto
-            </label>
-            <input
-              id="desc"
-              className="campo h-9 py-1 text-right tabular-nums"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={desconto}
-              onChange={(e) => setDesconto(e.target.value)}
-            />
-          </div>
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-texto-suave">
-              {qtdItens} {qtdItens === 1 ? "item" : "itens"}
-              {valorDesconto > 0 && ` · de ${brl(subtotal)}`}
+              {qtdItens} {qtdItens === 1 ? "item" : "itens"} · desconto na hora de cobrar
             </span>
             <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
           </div>

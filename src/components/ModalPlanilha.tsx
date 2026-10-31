@@ -25,8 +25,9 @@ export function ModalPlanilha({
 }: {
   aberto: boolean;
   aoFechar: () => void;
-  aoColarLista: () => void;
-  aoSistemaAntigo: () => void;
+  /** Sem eles (tela Estoque) some o bloco "Outros jeitos de cadastrar". */
+  aoColarLista?: () => void;
+  aoSistemaAntigo?: () => void;
 }) {
   const { produtos, salvarProdutosLote, salvarMovimentosLote, atualizarProduto } = useDados();
   const arquivo = useRef<HTMLInputElement>(null);
@@ -229,6 +230,7 @@ export function ModalPlanilha({
             }}
           />
 
+          {aoColarLista && aoSistemaAntigo && (
           <div className="pt-2">
             <p className="rotulo">Outros jeitos de cadastrar</p>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -236,6 +238,7 @@ export function ModalPlanilha({
               <Opcao Icone={History} titulo="Sistema antigo (LC)" texto="Os 548 produtos da conferência de 27/10." aoClicar={aoSistemaAntigo} pequeno />
             </div>
           </div>
+          )}
         </div>
       )}
     </Modal>

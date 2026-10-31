@@ -7,7 +7,7 @@ import {
   totalVenda,
   vendaConta,
 } from "./vendas";
-import type { EstoqueMovimento, Venda } from "./types";
+import type { EstoqueMovimento, Produto, Venda } from "./types";
 
 export interface Resumo {
   vendas: number;
@@ -251,6 +251,42 @@ export function entradasESaidas(movimentos: EstoqueMovimento[], de: string, ate:
     mapa.set(m.produtoId, linha);
   }
   return [...mapa.values()].sort((a, b) => b.vendeu - a.vendeu || b.entrou - a.entrou || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+export interface LinhaPerda {
+  id: string;
+  data: string;
+  nome: string;
+  qtd: number;
+  /** Custo da perda (custo do dia, ou o custo atual nas perdas antigas). */
+  custo: number;
+  /** Quanto daria vendendo pelo preço atual. */
+  venda: number;
+  obs?: string;
+}
+
+/** Cada perda/quebra do período, com o prejuízo no custo e no preço de venda. */
+export function perdasNoPeriodo(
+  movimentos: EstoqueMovimento[],
+  de: string,
+  ate: string,
+  produtoPorId: (id: string) => Produto | undefined,
+): LinhaPerda[] {
+  return movimentos
+    .filter((m) => m.origem === "PERDA" && m.data.slice(0, 10) >= de && m.data.slice(0, 10) <= ate)
+    .map((m) => {
+      const p = produtoPorId(m.produtoId);
+      return {
+        id: m.id,
+        data: m.data.slice(0, 10),
+        nome: m.produtoNome,
+        qtd: m.quantidadeUn,
+        custo: m.quantidadeUn * (m.custoUn ?? p?.precoCusto ?? 0),
+        venda: m.quantidadeUn * (p?.precoUn ?? 0),
+        obs: m.obs,
+      };
+    })
+    .sort((a, b) => b.data.localeCompare(a.data));
 }
 
 export interface LinhaCliente {

@@ -39,7 +39,7 @@ const TAREFAS: Tarefa[] = [
     quando: "Cliente paga e leva na hora.",
     passos: [
       "Abra Vender e toque nos produtos (ou passe o leitor de código de barras).",
-      "Confira a venda, dê desconto se precisar e toque em Cobrar.",
+      "Confira a venda e toque em Cobrar. O desconto (em R$ ou %) é dado ali, e o sistema mostra o valor.",
       "Escolha Dinheiro, Pix ou Cartão. No dinheiro, o troco aparece sozinho. Dá pra dividir em duas formas.",
     ],
     href: "/admin/vendas",
@@ -54,7 +54,7 @@ const TAREFAS: Tarefa[] = [
       "Em Comandas, toque em Nova comanda e escolha o cliente (dá pra cadastrar na hora).",
       "Vá adicionando os produtos. Enquanto a comanda está aberta, o estoque não muda.",
       "No fim, toque em Finalizar comanda: os itens saem do estoque.",
-      "Receba tudo, parte, ou marque “deixar a prazo” com a data de vencimento.",
+      "Receba tudo, parte, ou marque “deixar a prazo” com a data de vencimento. Dá pra dar desconto em R$ ou %.",
     ],
     href: "/admin/comandas",
     botao: "Abrir Comandas",
@@ -67,7 +67,7 @@ const TAREFAS: Tarefa[] = [
     passos: [
       "Em Comandas, aba A receber (as vencidas ficam em vermelho).",
       "Toque na comanda do cliente e em Receber.",
-      "Pode receber só uma parte — o resto continua em aberto.",
+      "Pode receber só uma parte — o resto continua em aberto. Se for abater um desconto no acerto, coloque em R$ ou %.",
     ],
     href: "/admin/comandas?aba=receber",
     botao: "Ver quem deve",
@@ -92,8 +92,8 @@ const TAREFAS: Tarefa[] = [
     titulo: "Contar o estoque",
     quando: "O número do sistema não bate com a prateleira.",
     passos: [
-      "Em Estoque, toque em Contar estoque.",
-      "Escolha o produto e digite quanto tem agora (em caixas e/ou unidades).",
+      "Em Estoque, toque em Contar na linha do produto (ou em Contar estoque, no alto, e escolha o produto).",
+      "Digite quanto tem agora (em caixas e/ou unidades).",
       "O sistema corrige e guarda a diferença no histórico do produto.",
     ],
     href: "/admin/estoque",
@@ -104,7 +104,10 @@ const TAREFAS: Tarefa[] = [
   {
     titulo: "Perda ou quebra",
     quando: "Garrafa quebrou, produto venceu.",
-    passos: ["Em Estoque, toque em Perda / quebra, escolha o produto e a quantidade."],
+    passos: [
+      "Em Estoque, toque em Perda / quebra, escolha o produto e a quantidade.",
+      "Em Relatórios, “Perdas e quebras” mostra o que se perdeu no período, com o custo e o preço de venda somados.",
+    ],
     href: "/admin/estoque",
     botao: "Abrir Estoque",
     Icone: PackageMinus,

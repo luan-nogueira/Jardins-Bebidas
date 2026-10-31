@@ -516,6 +516,8 @@ export interface ResultadoPagamento {
   pagamentos: VendaPagamento[];
   /** Preenchido quando ficou saldo pra pagar depois. */
   vencimento?: string;
+  /** Desconto dado agora (R$), somado ao da venda. */
+  desconto?: number;
 }
 
 export function ModalPagamento({
@@ -552,7 +554,7 @@ export function ModalPagamento({
 }
 
 function FormPagamento({
-  aPagar,
+  aPagar: cheio,
   permitePrazo,
   textoConfirmar,
   aoCancelar,
@@ -565,11 +567,28 @@ function FormPagamento({
   aoConfirmar: (r: ResultadoPagamento) => Promise<void>;
 }) {
   const [linhas, setLinhas] = useState<LinhaPg[]>([
-    { forma: "DINHEIRO", valor: aPagar.toFixed(2).replace(".", ",") },
+    { forma: "DINHEIRO", valor: cheio.toFixed(2).replace(".", ",") },
   ]);
   const [aPrazo, setAPrazo] = useState(false);
   const [vencimento, setVencimento] = useState(() => somarDias(hojeISO(), 30));
   const [salvando, setSalvando] = useState(false);
+  const [desconto, setDesconto] = useState("");
+  const [emPorcento, setEmPorcento] = useState(false);
+
+  const calcDesconto = (texto: string, porcento: boolean) => {
+    const n = Math.max(0, paraNumero(texto));
+    return Math.round(Math.min(cheio, porcento ? (cheio * n) / 100 : n) * 100) / 100;
+  };
+  const valorDesconto = calcDesconto(desconto, emPorcento);
+  const aPagar = cheio - valorDesconto;
+
+  /** Com uma forma só, o valor dela acompanha o desconto. */
+  function mudarDesconto(texto: string, porcento: boolean) {
+    setDesconto(texto);
+    setEmPorcento(porcento);
+    const devido = cheio - calcDesconto(texto, porcento);
+    setLinhas((ls) => (ls.length === 1 ? [{ ...ls[0], valor: devido.toFixed(2).replace(".", ",") }] : ls));
+  }
 
   const informado = linhas.reduce((s, l) => s + paraNumero(l.valor), 0);
   const temDinheiro = linhas.some((l) => l.forma === "DINHEIRO" && paraNumero(l.valor) > 0);
@@ -605,6 +624,7 @@ function FormPagamento({
       await aoConfirmar({
         pagamentos,
         vencimento: falta > 0.005 && aPrazo ? vencimento : undefined,
+        desconto: valorDesconto || undefined,
       });
     } finally {
       setSalvando(false);
@@ -613,8 +633,45 @@ function FormPagamento({
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <label className="rotulo mb-0 shrink-0" htmlFor="pg-desconto">
+          Desconto
+        </label>
+        <input
+          id="pg-desconto"
+          className="campo h-9 min-w-0 py-1 text-right tabular-nums"
+          inputMode="decimal"
+          placeholder={emPorcento ? "0" : "0,00"}
+          value={desconto}
+          onChange={(e) => mudarDesconto(e.target.value, emPorcento)}
+        />
+        <div className="flex shrink-0 rounded-lg border border-borda p-0.5">
+          {[false, true].map((p) => (
+            <button
+              key={String(p)}
+              type="button"
+              aria-pressed={emPorcento === p}
+              onClick={() => mudarDesconto(desconto, p)}
+              className={`h-7 w-9 rounded-md text-xs font-bold ${
+                emPorcento === p ? "bg-acento text-acento-texto" : "text-texto-suave"
+              }`}
+            >
+              {p ? "%" : "R$"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="card flex items-center justify-between border-acento/40 bg-acento/5 px-4 py-3">
-        <span className="text-sm font-semibold text-texto-suave">A pagar</span>
+        <span className="text-sm font-semibold text-texto-suave">
+          A pagar
+          {valorDesconto > 0 && (
+            <span className="block text-xs font-normal">
+              de {brl(cheio)} − {brl(valorDesconto)}
+              {emPorcento && ` (${desconto.replace(".", ",")}%)`}
+            </span>
+          )}
+        </span>
         <span className="text-2xl font-black text-acento tabular-nums">{brl(aPagar)}</span>
       </div>
 
@@ -743,6 +800,7 @@ export function useAcoesVenda() {
     const final: Venda = {
       ...venda,
       status: "FINALIZADA",
+      desconto: venda.desconto + (r.desconto ?? 0),
       pagamentos: [...venda.pagamentos, ...r.pagamentos],
       vencimento: r.vencimento,
       finalizadaEm: agora,
@@ -757,6 +815,7 @@ export function useAcoesVenda() {
   async function receber(venda: Venda, r: ResultadoPagamento) {
     await d.salvarVenda({
       ...venda,
+      desconto: venda.desconto + (r.desconto ?? 0),
       pagamentos: [...venda.pagamentos, ...r.pagamentos],
       vencimento: r.vencimento ?? venda.vencimento,
       atualizadoEm: new Date().toISOString(),
