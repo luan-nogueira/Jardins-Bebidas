@@ -120,11 +120,59 @@ export interface Venda {
   operador?: string;
   /** Comanda externa: os produtos novos entram no preço de retirada. */
   retirada?: boolean;
+  /** Mesa (comanda de restaurante, lançada pelo garçom). Com mesa, o cliente é opcional. */
+  mesa?: string;
+  /** Nome de quem abriu a mesa no celular do garçom. */
+  garcom?: string;
   abertaEm: string;
   /** Quando a venda conta nos relatórios e baixa o estoque. */
   finalizadaEm?: string;
   canceladaEm?: string;
   atualizadoEm: string;
+}
+
+/* ---------------------------------------------------------------------------
+   Pedido de cozinha — cada "Enviar pra cozinha" do garçom vira um pedido.
+   Os itens também entram na comanda (é ela que cobra e baixa o estoque);
+   o pedido é só o que a cozinha/bar precisa preparar e o andamento disso.
+   --------------------------------------------------------------------------- */
+
+export type PedidoStatus = "NOVO" | "PREPARANDO" | "PRONTO" | "ENTREGUE" | "CANCELADO";
+
+export interface PedidoItem {
+  produtoId: string;
+  nome: string;
+  categoria: string;
+  qtd: number;
+  /** "sem gelo", "bem passado"… */
+  obs?: string;
+  cancelado?: boolean;
+  motivoCancelamento?: string;
+  canceladoEm?: string;
+  canceladoPor?: string;
+}
+
+export interface Pedido {
+  id: string;
+  /** A comanda (venda) de onde o pedido saiu. */
+  vendaId: string;
+  comandaNumero: number;
+  /** 1º, 2º, 3º pedido da mesma comanda. */
+  sequencia: number;
+  mesa?: string;
+  clienteNome?: string;
+  garcom?: string;
+  itens: PedidoItem[];
+  obs?: string;
+  status: PedidoStatus;
+  criadoEm: string;
+  atualizadoEm: string;
+  preparoEm?: string;
+  prontoEm?: string;
+  entregueEm?: string;
+  canceladoEm?: string;
+  motivoCancelamento?: string;
+  canceladoPor?: string;
 }
 
 export type EstoqueTipo = "ENTRADA" | "SAIDA" | "AJUSTE";
@@ -157,7 +205,8 @@ export interface EstoqueMovimento {
   criadoEm: string;
 }
 
-export type PapelUsuario = "admin" | "funcionario";
+/** "garcom": só entra na tela do garçom (/garcom), nada do sistema. */
+export type PapelUsuario = "admin" | "funcionario" | "garcom";
 
 /** O que um funcionário pode ver/mexer — cada chave liga/desliga uma parte do sistema. */
 export interface Permissoes {
@@ -169,11 +218,28 @@ export interface Permissoes {
   financeiro: boolean;
   estoque: boolean;
   fornecedores: boolean;
+  /** Tela da cozinha/bar: ver os pedidos e mudar o andamento. */
+  cozinha: boolean;
   /** Ver preço de custo, margem e lucro — mesmo em telas que ele já acessa. */
   verCusto: boolean;
   /** Excluir cadastros e cancelar vendas finalizadas. */
   excluir: boolean;
 }
+
+/** Garçom: lança e fecha mesas (comandas) e nada mais. */
+export const PERMISSOES_GARCOM: Permissoes = {
+  vendas: false,
+  comandas: true,
+  relatorios: false,
+  produtos: false,
+  clientes: false,
+  financeiro: false,
+  estoque: false,
+  fornecedores: false,
+  cozinha: false,
+  verCusto: false,
+  excluir: false,
+};
 
 export const PERMISSOES_PADRAO_FUNCIONARIO: Permissoes = {
   vendas: true,
@@ -184,6 +250,7 @@ export const PERMISSOES_PADRAO_FUNCIONARIO: Permissoes = {
   financeiro: false,
   estoque: true,
   fornecedores: false,
+  cozinha: false,
   verCusto: false,
   excluir: false,
 };

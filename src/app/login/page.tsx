@@ -51,12 +51,15 @@ export default function LoginPage() {
     setEnviando(true);
     try {
       await entrar(email, senha);
+      // Veio do app do garçom (/login?volta=/garcom): volta pra lá.
+      const volta = new URLSearchParams(window.location.search).get("volta");
+      const destino = volta && volta.startsWith("/") && !volta.startsWith("//") ? volta : "/admin";
       // Mostra o brinde e só então abre o painel (já carregando por trás).
       // Com "reduzir movimento" não há animação pra esperar.
-      router.prefetch("/admin");
+      router.prefetch(destino);
       setAprovado(true);
       const semAnimacao = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      setTimeout(() => router.replace("/admin"), semAnimacao ? 400 : 1900);
+      setTimeout(() => router.replace(destino), semAnimacao ? 400 : 1900);
     } catch (erro) {
       falhou(mensagemDeErro(erro));
       setEnviando(false);

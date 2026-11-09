@@ -1,0 +1,13 @@
+{
+  "id": "/garcom",
+  "name": "Jardins Bebidas — Garçom",
+  "short_name": "Garçom",
+  "description": "Mesas e pedidos da Jardins Bebidas.",
+  "start_url": "/garcom",
+  "scope": "/garcom",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf6f1",
+  "theme_color": "#4a230f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

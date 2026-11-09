@@ -16,8 +16,8 @@ import { SomenteAdmin } from "@/components/Protegido";
 import { useDados, novoId } from "@/lib/store";
 import { criarLoginFuncionario } from "@/lib/firebase";
 import { mensagemDeErro } from "@/lib/auth";
-import { PERMISSOES_PADRAO_FUNCIONARIO } from "@/lib/types";
-import type { Permissoes, Usuario } from "@/lib/types";
+import { PERMISSOES_GARCOM, PERMISSOES_PADRAO_FUNCIONARIO } from "@/lib/types";
+import type { PapelUsuario, Permissoes, Usuario } from "@/lib/types";
 
 const ROTULO_PERMISSAO: Record<keyof Permissoes, string> = {
   vendas: "Vender (balcão)",
@@ -28,6 +28,7 @@ const ROTULO_PERMISSAO: Record<keyof Permissoes, string> = {
   financeiro: "Financeiro",
   estoque: "Estoque",
   fornecedores: "Fornecedores",
+  cozinha: "Tela da cozinha",
   verCusto: "Ver custo/margem/lucro",
   excluir: "Excluir cadastros / cancelar vendas",
 };
@@ -38,6 +39,7 @@ type Formulario = {
   nome: string;
   email: string;
   senha: string;
+  papel: PapelUsuario;
   permissoes: Permissoes;
 };
 
@@ -46,6 +48,7 @@ function formVazio(): Formulario {
     nome: "",
     email: "",
     senha: "",
+    papel: "funcionario",
     permissoes: { ...PERMISSOES_PADRAO_FUNCIONARIO },
   };
 }
@@ -77,9 +80,18 @@ function EquipePageInterno() {
 
   function abrirEdicao(u: Usuario) {
     setEditando(u);
-    setForm({ nome: u.nome, email: u.email, senha: "", permissoes: { ...u.permissoes } });
+    setForm({ nome: u.nome, email: u.email, senha: "", papel: u.papel, permissoes: { ...u.permissoes } });
     setErro("");
     setAberto(true);
+  }
+
+  /** Garçom tem permissões fixas: só mesas. */
+  function mudarPapel(papel: PapelUsuario) {
+    setForm((f) => ({
+      ...f,
+      papel,
+      permissoes: { ...(papel === "garcom" ? PERMISSOES_GARCOM : PERMISSOES_PADRAO_FUNCIONARIO) },
+    }));
   }
 
   function alternarPermissao(chave: keyof Permissoes) {
@@ -98,7 +110,7 @@ function EquipePageInterno() {
     setSalvando(true);
     try {
       if (editando) {
-        await salvarUsuario({ ...editando, nome, permissoes: form.permissoes });
+        await salvarUsuario({ ...editando, nome, papel: form.papel, permissoes: form.permissoes });
       } else {
         if (!email || form.senha.length < 6) {
           setErro("Preencha e-mail e uma senha com pelo menos 6 caracteres.");
@@ -111,7 +123,7 @@ function EquipePageInterno() {
           id: uid,
           email,
           nome,
-          papel: "funcionario",
+          papel: form.papel,
           permissoes: form.permissoes,
           ativo: true,
           criadoEm: agora,
@@ -175,6 +187,9 @@ function EquipePageInterno() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-bold">{u.nome}</p>
+                    {u.papel === "garcom" && (
+                      <span className="chip bg-acento/15 text-acento">Garçom — só o app de mesas</span>
+                    )}
                     {u.ativo === false && (
                       <span className="chip bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">
                         acesso desativado
@@ -183,7 +198,7 @@ function EquipePageInterno() {
                   </div>
                   <p className="text-xs text-texto-suave">{u.email}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {CHAVES_PERMISSAO.filter((c) => u.permissoes[c]).map((c) => (
+                    {u.papel !== "garcom" && CHAVES_PERMISSAO.filter((c) => u.permissoes[c]).map((c) => (
                       <span
                         key={c}
                         className="chip bg-superficie-2 text-texto-suave"
@@ -303,7 +318,38 @@ function EquipePageInterno() {
             </>
           )}
 
-          <div className="border-t border-borda pt-3">
+          {form.papel !== "admin" && (
+            <div className="border-t border-borda pt-3">
+              <p className="rotulo mb-2">Tipo de acesso</p>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-superficie-2 p-1">
+                {(
+                  [
+                    ["funcionario", "Funcionário"],
+                    ["garcom", "Garçom"],
+                  ] as [PapelUsuario, string][]
+                ).map(([papel, rotulo]) => (
+                  <button
+                    key={papel}
+                    type="button"
+                    onClick={() => mudarPapel(papel)}
+                    className={`rounded-lg py-2 text-sm font-bold transition ${
+                      form.papel === papel ? "bg-superficie shadow-sm" : "text-texto-suave"
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+              {form.papel === "garcom" && (
+                <p className="mt-2 text-xs text-texto-suave">
+                  Entra só no app do garçom (<strong>/garcom</strong>): abre mesas, lança pedidos pra
+                  cozinha e fecha a conta. Não vê mais nada do sistema.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className={`border-t border-borda pt-3 ${form.papel === "garcom" ? "hidden" : ""}`}>
             <p className="rotulo mb-2">O que ele pode ver/mexer</p>
             <div className="space-y-1">
               {CHAVES_PERMISSAO.map((chave) => (

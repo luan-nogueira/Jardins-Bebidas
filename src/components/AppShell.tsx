@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Boxes,
+  ChefHat,
   ClipboardList,
   HelpCircle,
   Home,
@@ -20,6 +21,7 @@ import {
   Store,
   Truck,
   Users,
+  UtensilsCrossed,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +37,8 @@ import type { Permissoes } from "@/lib/types";
 const ITENS = [
   { href: "/admin", rotulo: "Painel", Icone: Home, chave: null },
   { href: "/admin/vendas", rotulo: "Vender", Icone: ShoppingCart, chave: "vendas" },
+  { href: "/admin/salao", rotulo: "Salão", Icone: UtensilsCrossed, chave: "comandas" },
+  { href: "/admin/cozinha", rotulo: "Cozinha", Icone: ChefHat, chave: "cozinha" },
   { href: "/admin/comandas", rotulo: "Comandas", Icone: ClipboardList, chave: "comandas" },
   { href: "/admin/relatorios", rotulo: "Relatórios", Icone: BarChart3, chave: "relatorios" },
   { href: "/admin/financeiro", rotulo: "Financeiro", Icone: Wallet, chave: "financeiro" },
@@ -58,6 +62,7 @@ const ITEM_AJUDA = { href: "/admin/ajuda", rotulo: "Ajuda", Icone: HelpCircle };
 const FIXOS_CELULAR = ["/admin", "/admin/vendas", "/admin/comandas", "/admin/relatorios"];
 
 const ROTA_COMANDAS = "/admin/comandas";
+const ROTA_COZINHA = "/admin/cozinha";
 
 /** Telas que qualquer um alcança sem estar logado. */
 const ROTAS_PUBLICAS = ["/login", "/catalogo"];
@@ -76,8 +81,8 @@ function ehPublica(caminho: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const caminho = usePathname();
   const router = useRouter();
-  const { modoDemonstracao, comandasAbertas } = useDados();
-  const { usuario, carregando, exigeLogin, sair, permissoes, ehAdmin } = useAuth();
+  const { modoDemonstracao, comandasAbertas, pedidosNovos } = useDados();
+  const { usuario, carregando, exigeLogin, sair, permissoes, ehAdmin, ehGarcom } = useAuth();
 
   const precisaEntrar = exigeLogin && !carregando && !usuario;
   const publica = ehPublica(caminho);
@@ -96,11 +101,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const noMais = itensDesktop.filter((i) => !fixosCelular.includes(i));
   const [maisAberto, setMaisAberto] = useState(false);
 
-  const badgeDe = (href: string) => (href === ROTA_COMANDAS ? comandasAbertas : 0);
+  const badgeDe = (href: string) =>
+    href === ROTA_COMANDAS ? comandasAbertas : href === ROTA_COZINHA ? pedidosNovos : 0;
 
   useEffect(() => {
     if (precisaEntrar && !publica) router.replace("/login");
   }, [precisaEntrar, publica, router]);
+
+  // Login de garçom não vê o sistema: qualquer tela do /admin volta pro app dele.
+  useEffect(() => {
+    if (ehGarcom && !publica) router.replace("/garcom");
+  }, [ehGarcom, publica, router]);
 
   // Sem a casca do app: login e as folhas imprimíveis.
   if (publica || caminho.includes("/imprimir")) {
@@ -112,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   // Enquanto o redirecionamento acontece, não pisca o conteúdo protegido.
-  if (precisaEntrar) {
+  if (precisaEntrar || ehGarcom) {
     return <TelaEspera texto="Redirecionando…" />;
   }
 

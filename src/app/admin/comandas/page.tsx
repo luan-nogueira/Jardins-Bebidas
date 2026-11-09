@@ -11,6 +11,7 @@ import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataBR, dataHoraBR, hojeISO, normalizar } from "@/lib/format";
 import { numeroVenda, saldoVenda, totalVenda, vendaEmAberto } from "@/lib/vendas";
+import { nomeComanda } from "@/lib/pedidos";
 import type { Cliente, Venda } from "@/lib/types";
 
 type Aba = "abertas" | "receber" | "fechadas";
@@ -45,7 +46,7 @@ function ComandasInterno() {
   const fechadas = comandas.filter((v) => v.status !== "ABERTA" && !vendaEmAberto(v));
 
   const lista = (aba === "abertas" ? abertas : aba === "receber" ? aReceber : fechadas).filter(
-    (v) => !busca || normalizar(v.clienteNome ?? "").includes(normalizar(busca)),
+    (v) => !busca || normalizar(nomeComanda(v)).includes(normalizar(busca)),
   );
 
   const hoje = hojeISO();
@@ -123,7 +124,7 @@ function ComandasInterno() {
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-texto-suave" />
           <input
             className="campo pl-9"
-            placeholder="Buscar cliente…"
+            placeholder="Buscar cliente ou mesa…"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />
@@ -150,7 +151,7 @@ function ComandasInterno() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate font-bold">{v.clienteNome}</p>
+                      <p className="truncate font-bold">{nomeComanda(v)}</p>
                       <ChipStatusVenda venda={v} />
                     </div>
                     <p className="mt-0.5 text-xs text-texto-suave">

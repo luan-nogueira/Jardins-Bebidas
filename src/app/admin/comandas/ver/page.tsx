@@ -12,6 +12,7 @@ import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
 import { adicionarItem, numeroVenda, subtotalItens, totalVenda } from "@/lib/vendas";
+import { nomeComanda } from "@/lib/pedidos";
 import type { Venda, VendaItem } from "@/lib/types";
 
 export default function VerComandaPage() {
@@ -75,7 +76,7 @@ function VerComanda() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-black md:text-2xl">{c.clienteNome}</h1>
+          <h1 className="truncate text-xl font-black md:text-2xl">{nomeComanda(c)}</h1>
           <p className="text-xs text-texto-suave">
             Comanda {numeroVenda(c.numero)} · aberta {dataHoraBR(c.abertaEm)}
           </p>
@@ -153,9 +154,10 @@ function VerComanda() {
 
       <ModalPagamento
         aberto={fechando}
-        titulo={`Finalizar comanda de ${c.clienteNome}`}
+        titulo={`Finalizar comanda de ${nomeComanda(c)}`}
         aPagar={totalVenda(vendaPorId(c.id) ?? c)}
-        permitePrazo
+        // Mesa sem cliente cadastrado não tem de quem cobrar depois.
+        permitePrazo={!!c.clienteId}
         textoConfirmar="Finalizar"
         aoFechar={() => setFechando(false)}
         aoConfirmar={async (r) => {
@@ -195,7 +197,7 @@ function VerComanda() {
         }
       >
         <p className="text-sm text-texto-suave">
-          A comanda de <strong className="text-texto">{c.clienteNome}</strong> ({numeroVenda(c.numero)}
+          A comanda de <strong className="text-texto">{nomeComanda(c)}</strong> ({numeroVenda(c.numero)}
           {c.itens.length > 0 ? ` · ${brl(total)}` : ""}) será cancelada. O estoque não muda, porque
           comanda aberta ainda não tinha baixado nada. Ela continua no histórico, na aba
           “Quitadas”, marcada como cancelada.

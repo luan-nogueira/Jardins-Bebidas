@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   // quando o deploy vem do Git — e aqui publicamos pela CLI, então sozinho
   // ele ficava vazio e a proteção nunca ligava.
   deploymentId: process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA,
+  // Quem digitar o link com cedilha (/garçom) cai no app do garçom.
+  async redirects() {
+    return [{ source: "/gar%C3%A7om", destination: "/garcom", permanent: false }];
+  },
   images: {
     remotePatterns: [
       // Cloudinary: novo host das fotos de produto.

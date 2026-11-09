@@ -85,6 +85,12 @@ service cloud.firestore {
       allow write: if temPermissao("produtos") || temPermissao("estoque") || vende();
     }
 
+    // Pedidos de cozinha: o garçom (comandas) lança e cancela; a cozinha
+    // muda o andamento (novo → em preparo → pronto → entregue).
+    match /pedidos/{doc} {
+      allow read, write: if vende() || temPermissao("cozinha");
+    }
+
     match /usuarios/{uid} {
       allow read: if logado() && (request.auth.uid == uid || ehAdmin());
       allow write: if ehAdmin();

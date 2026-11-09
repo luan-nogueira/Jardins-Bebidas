@@ -26,6 +26,7 @@ import {
   totalVenda,
   vendaConta,
 } from "@/lib/vendas";
+import { nomeComanda } from "@/lib/pedidos";
 import type { Cliente, Venda, VendaItem } from "@/lib/types";
 
 export default function VendasPage() {
@@ -121,7 +122,7 @@ function VendasInterno() {
     });
     setEscolhendoComanda(false);
     limpar();
-    mostrarAviso(`Lançado na comanda de ${comanda.clienteNome}`);
+    mostrarAviso(`Lançado na comanda de ${nomeComanda(comanda)}`);
   }
 
   async function abrirComandaNova(c: Cliente) {
@@ -361,7 +362,7 @@ function ModalEscolherComanda({
                     onClick={() => executar(() => aoEscolher(c))}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold">{c.clienteNome}</span>
+                      <span className="block truncate font-semibold">{nomeComanda(c)}</span>
                       <span className="block text-xs text-texto-suave">
                         {numeroVenda(c.numero)} · {c.itens.length} item(ns)
                       </span>

@@ -29,6 +29,7 @@ const PERMISSOES_TOTAL: Permissoes = {
   financeiro: true,
   estoque: true,
   fornecedores: true,
+  cozinha: true,
   verCusto: true,
   excluir: true,
 };
@@ -43,6 +44,7 @@ const PERMISSOES_NENHUMA: Permissoes = {
   financeiro: false,
   estoque: false,
   fornecedores: false,
+  cozinha: false,
   verCusto: false,
   excluir: false,
 };
@@ -53,6 +55,8 @@ interface Autenticacao {
   perfil: Usuario | null;
   permissoes: Permissoes;
   ehAdmin: boolean;
+  /** Login de garçom: só a tela /garcom. */
+  ehGarcom: boolean;
   carregando: boolean;
   /** Falso no modo demonstração — sem Firebase não há o que proteger. */
   exigeLogin: boolean;
@@ -130,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // o papel salvo seja "admin" por engano — desativar sempre vence.
   const desativado = !!perfil && perfil.ativo === false;
   const ehAdmin = !desativado && (!perfil || perfil.papel === "admin");
+  const ehGarcom = !desativado && perfil?.papel === "garcom";
   const permissoes = desativado
     ? PERMISSOES_NENHUMA
     : ehAdmin
@@ -147,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       perfil,
       permissoes,
       ehAdmin,
+      ehGarcom,
       carregando,
       exigeLogin: firebaseConfigurado,
       entrar,
