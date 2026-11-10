@@ -472,6 +472,29 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Cupom da cozinha (impressora térmica 80mm). Fica escondido na tela; na
+   hora de imprimir, o body ganha .imprimindo-cupom e só o cupom sai.
+   --------------------------------------------------------------------------- */
+.so-impressao {
+  display: none;
+}
+
+@page cupom {
+  margin: 0;
+}
+
+@media print {
+  body.imprimindo-cupom > *:not(.so-impressao) {
+    display: none !important;
+  }
+
+  body.imprimindo-cupom .so-impressao {
+    display: block !important;
+    page: cupom;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Impressão — usada pelo relatório do cliente.
    --------------------------------------------------------------------------- */
 @media print {

@@ -173,6 +173,8 @@ export interface Pedido {
   canceladoEm?: string;
   motivoCancelamento?: string;
   canceladoPor?: string;
+  /** Quando o cupom saiu na impressora da cozinha (evita imprimir de novo). */
+  impressoEm?: string;
 }
 
 export type EstoqueTipo = "ENTRADA" | "SAIDA" | "AJUSTE";

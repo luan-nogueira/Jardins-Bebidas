@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Ban,
   BellRing,
@@ -10,6 +10,7 @@ import {
   Flame,
   Maximize,
   Minimize,
+  Printer,
   Undo2,
   Volume2,
   VolumeX,
@@ -17,6 +18,7 @@ import {
 import { Cabecalho, Metrica, Vazio } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { ChipPedido, LinhaItemPedido, ModalCancelarPedido, useAgora, type AlvoCancelamento } from "@/components/Pedidos";
+import { useImpressaoCozinha, type Cupom } from "@/components/CupomCozinha";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { dataBR, horaBR, hojeISO } from "@/lib/format";
@@ -62,6 +64,58 @@ function CozinhaInterno() {
 }
 
 /* ---------------------------------------------------------------------------
+   Som — alarme alto (onda quadrada + compressor), gerado no navegador
+   --------------------------------------------------------------------------- */
+
+function tocarNotas(ctx: AudioContext, notas: number[], passo: number, pausaMeio = 0) {
+  const t0 = ctx.currentTime + 0.02;
+  const saida = ctx.createDynamicsCompressor();
+  saida.threshold.value = -10;
+  saida.connect(ctx.destination);
+  notas.forEach((freq, i) => {
+    const t = t0 + i * passo + (pausaMeio && i >= notas.length / 2 ? pausaMeio : 0);
+    const osc = ctx.createOscillator();
+    const ganho = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = freq;
+    ganho.gain.setValueAtTime(0.0001, t);
+    ganho.gain.exponentialRampToValueAtTime(1, t + 0.01);
+    ganho.gain.exponentialRampToValueAtTime(0.0001, t + passo * 0.95);
+    osc.connect(ganho).connect(saida);
+    osc.start(t);
+    osc.stop(t + passo);
+  });
+}
+
+/** Pedido novo: dois arpejos subindo, bem alto. */
+const alarmePedido = (ctx: AudioContext) => tocarNotas(ctx, [880, 1175, 1568, 2093, 880, 1175, 1568, 2093], 0.14, 0.3);
+/** Lembrete de pedido parado / cancelamento: três bipes. */
+const alarmeCurto = (ctx: AudioContext) => tocarNotas(ctx, [1568, 1568, 1568], 0.18);
+
+/* ---------------------------------------------------------------------------
+   Preferências deste aparelho (som e impressão automática)
+   --------------------------------------------------------------------------- */
+
+const CHAVE_PREFS = "jardins:cozinha-prefs";
+
+function lerPrefs(): { som: boolean; autoImprimir: boolean } {
+  try {
+    const p = JSON.parse(localStorage.getItem(CHAVE_PREFS) ?? "{}");
+    return { som: !!p.som, autoImprimir: !!p.autoImprimir };
+  } catch {
+    return { som: false, autoImprimir: false };
+  }
+}
+
+function gravarPrefs(prefs: { som: boolean; autoImprimir: boolean }) {
+  try {
+    localStorage.setItem(CHAVE_PREFS, JSON.stringify(prefs));
+  } catch {
+    // sem armazenamento: vale até recarregar
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Painel — Novos → Em preparo → Prontos
    --------------------------------------------------------------------------- */
 
@@ -82,21 +136,8 @@ const TEXTO_ESPERA = {
   atrasado: "text-red-600 dark:text-red-400",
 };
 
-/** Bipe curto — sem arquivo de som, gerado no navegador. */
-function bipar(ctx: AudioContext) {
-  for (const [atraso, freq] of [
-    [0, 880],
-    [0.18, 1175],
-  ]) {
-    const osc = ctx.createOscillator();
-    const ganho = ctx.createGain();
-    osc.frequency.value = freq;
-    ganho.gain.setValueAtTime(0.25, ctx.currentTime + atraso);
-    ganho.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + atraso + 0.3);
-    osc.connect(ganho).connect(ctx.destination);
-    osc.start(ctx.currentTime + atraso);
-    osc.stop(ctx.currentTime + atraso + 0.3);
-  }
+function nomeDoPedido(p: Pedido) {
+  return p.mesa ? `Mesa ${p.mesa}` : (p.clienteNome ?? "Balcão");
 }
 
 function Painel() {
@@ -106,9 +147,20 @@ function Painel() {
   const [colunaCelular, setColunaCelular] = useState<PedidoStatus>("NOVO");
   const [cancelando, setCancelando] = useState<AlvoCancelamento | null>(null);
   const [som, setSom] = useState(false);
-  const [telaCheia, setTelaCheia] = useState(false);
+  const [autoImprimir, setAutoImprimir] = useState(false);
+  const [modoTela, setModoTela] = useState(false);
+  const [alerta, setAlerta] = useState<{ titulo: string; detalhe: string; cor: string } | null>(null);
+  const { imprimir, area } = useImpressaoCozinha();
+
   const audio = useRef<AudioContext | null>(null);
+  const somRef = useRef(false);
+  const autoRef = useRef(false);
   const vistos = useRef<Set<string> | null>(null);
+  const cancelVistos = useRef<Set<string>>(new Set());
+  const pedidosRef = useRef(pedidos);
+  pedidosRef.current = pedidos;
+  somRef.current = som;
+  autoRef.current = autoImprimir;
 
   const ativos = useMemo(
     () =>
@@ -118,82 +170,212 @@ function Painel() {
     [pedidos],
   );
 
-  // Pedido novo chegou: bipe (se ligado).
+  /** O navegador só libera som depois de um toque na tela. */
+  const garantirAudio = useCallback(() => {
+    audio.current ??= new AudioContext();
+    void audio.current.resume();
+    return audio.current;
+  }, []);
+
+  const tocar = useCallback((tipo: "pedido" | "curto") => {
+    const ctx = audio.current;
+    if (!somRef.current || !ctx || ctx.state !== "running") return;
+    (tipo === "pedido" ? alarmePedido : alarmeCurto)(ctx);
+  }, []);
+
+  // Preferências salvas; o som volta a funcionar no primeiro toque na tela.
+  useEffect(() => {
+    const prefs = lerPrefs();
+    setSom(prefs.som);
+    setAutoImprimir(prefs.autoImprimir);
+    if (!prefs.som) return;
+    const destravar = () => garantirAudio();
+    window.addEventListener("pointerdown", destravar, { once: true });
+    return () => window.removeEventListener("pointerdown", destravar);
+  }, [garantirAudio]);
+
+  const imprimirPedidos = useCallback(
+    (lista: Pedido[]) => {
+      const agoraIso = new Date().toISOString();
+      imprimir(
+        lista.map((p) => ({ chave: `${p.id}-${agoraIso}`, pedido: p, tipo: "PEDIDO", itens: itensAtivos(p) }) satisfies Cupom),
+      );
+      for (const p of lista) if (!p.impressoEm) void salvarPedido({ ...p, impressoEm: agoraIso });
+    },
+    [imprimir, salvarPedido],
+  );
+
+  // Chegou pedido / item cancelado: alarme, tela piscando, vibração e cupom.
   useEffect(() => {
     if (carregando) return;
-    const novos = pedidos.filter((p) => p.status === "NOVO").map((p) => p.id);
+    const chaveCancel = pedidos.flatMap((p) => p.itens.flatMap((it, i) => (it.cancelado ? [`${p.id}:${i}`] : [])));
     if (vistos.current === null) {
-      vistos.current = new Set(novos);
+      vistos.current = new Set(pedidos.map((p) => p.id));
+      cancelVistos.current = new Set(chaveCancel);
       return;
     }
-    const chegou = novos.some((id) => !vistos.current!.has(id));
-    novos.forEach((id) => vistos.current!.add(id));
-    if (chegou && som && audio.current) bipar(audio.current);
-  }, [pedidos, carregando, som]);
+    const chegaram = pedidos.filter((p) => p.status === "NOVO" && !vistos.current!.has(p.id));
+    pedidos.forEach((p) => vistos.current!.add(p.id));
 
+    const cancelNovos = pedidos.flatMap((p) => {
+      const itens = p.itens.filter((it, i) => it.cancelado && !cancelVistos.current.has(`${p.id}:${i}`));
+      return itens.length ? [{ pedido: p, itens }] : [];
+    });
+    chaveCancel.forEach((k) => cancelVistos.current.add(k));
+
+    if (chegaram.length) {
+      tocar("pedido");
+      navigator.vibrate?.([400, 150, 400, 150, 400]);
+      setAlerta({
+        titulo: chegaram.length > 1 ? `${chegaram.length} NOVOS PEDIDOS` : "NOVO PEDIDO",
+        detalhe: chegaram.map(nomeDoPedido).join(" · "),
+        cor: "bg-blue-600",
+      });
+      if (autoRef.current) imprimirPedidos(chegaram.filter((p) => !p.impressoEm));
+    } else if (cancelNovos.length) {
+      tocar("curto");
+      navigator.vibrate?.([600]);
+      setAlerta({
+        titulo: "CANCELADO",
+        detalhe: cancelNovos.map((c) => `${nomeDoPedido(c.pedido)}: ${c.itens.map((i) => `${i.qtd}× ${i.nome}`).join(", ")}`).join(" · "),
+        cor: "bg-red-600",
+      });
+    }
+    // Cupom de cancelamento só pra pedido que já tinha saído impresso.
+    if (autoRef.current) {
+      const agoraIso = new Date().toISOString();
+      imprimir(
+        cancelNovos
+          .filter((c) => c.pedido.impressoEm)
+          .map((c) => ({ chave: `${c.pedido.id}-cancel-${agoraIso}`, pedido: c.pedido, tipo: "CANCELAMENTO", itens: c.itens })),
+      );
+    }
+  }, [pedidos, carregando, tocar, imprimir, imprimirPedidos]);
+
+  // O alerta some sozinho.
   useEffect(() => {
-    const aoMudar = () => setTelaCheia(!!document.fullscreenElement);
+    if (!alerta) return;
+    const t = setTimeout(() => setAlerta(null), 7000);
+    return () => clearTimeout(t);
+  }, [alerta]);
+
+  // Lembrete: pedido parado em "Novos" há mais de 2 min toca de novo a cada 45s.
+  useEffect(() => {
+    const t = setInterval(() => {
+      const limite = new Date(Date.now() - 2 * 60_000).toISOString();
+      if (pedidosRef.current.some((p) => p.status === "NOVO" && p.criadoEm < limite)) tocar("curto");
+    }, 45_000);
+    return () => clearInterval(t);
+  }, [tocar]);
+
+  // Tela cheia: sai do modo quando o navegador sai (tecla Esc).
+  useEffect(() => {
+    const aoMudar = () => {
+      if (!document.fullscreenElement) setModoTela(false);
+    };
     document.addEventListener("fullscreenchange", aoMudar);
     return () => document.removeEventListener("fullscreenchange", aoMudar);
   }, []);
 
+  // No modo tela cheia a tela do tablet não apaga sozinha.
+  useEffect(() => {
+    if (!modoTela || !("wakeLock" in navigator)) return;
+    let trava: WakeLockSentinel | null = null;
+    navigator.wakeLock.request("screen").then((t) => (trava = t), () => {});
+    return () => void trava?.release();
+  }, [modoTela]);
+
   function alternarSom() {
-    if (!som) {
-      audio.current ??= new AudioContext();
-      void audio.current.resume();
-      bipar(audio.current);
-    }
-    setSom(!som);
+    const novo = !som;
+    setSom(novo);
+    somRef.current = novo;
+    gravarPrefs({ som: novo, autoImprimir });
+    if (novo) alarmePedido(garantirAudio());
   }
 
-  function alternarTelaCheia() {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void document.documentElement.requestFullscreen?.();
+  function alternarAuto() {
+    const novo = !autoImprimir;
+    setAutoImprimir(novo);
+    gravarPrefs({ som, autoImprimir: novo });
+  }
+
+  function alternarTela() {
+    if (modoTela) {
+      setModoTela(false);
+      if (document.fullscreenElement) void document.exitFullscreen();
+    } else {
+      setModoTela(true);
+      // iPad não tem tela cheia de verdade: aí fica só o modo sem menu.
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    }
   }
 
   // Cancelamentos dos últimos 20 min — pra cozinha parar de preparar.
   const cancelamentos = useMemo(() => {
     const desde = new Date(agora - 20 * 60_000).toISOString();
     return pedidos.flatMap((p) =>
-      p.itens
-        .filter((i) => i.cancelado && (i.canceladoEm ?? "") >= desde)
-        .map((i) => ({ pedido: p, item: i })),
+      p.itens.filter((i) => i.cancelado && (i.canceladoEm ?? "") >= desde).map((i) => ({ pedido: p, item: i })),
     );
   }, [pedidos, agora]);
 
   const mover = (p: Pedido, status: PedidoStatus) => salvarPedido(comStatus(p, status));
   const voltar: Partial<Record<PedidoStatus, PedidoStatus>> = { PREPARANDO: "NOVO", PRONTO: "PREPARANDO" };
+  const contagem = (s: PedidoStatus) => ativos.filter((p) => p.status === s).length;
+
+  const botoes = (
+    <div className="flex flex-wrap gap-2">
+      <button className={som ? "btn-primario" : "btn-secundario"} onClick={alternarSom} title="Alarme quando chegar pedido">
+        {som ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+        {som ? "Som ligado" : "Ligar som"}
+      </button>
+      <button
+        className={autoImprimir ? "btn-primario" : "btn-secundario"}
+        onClick={alternarAuto}
+        title="Imprime o cupom sozinho quando o pedido chega"
+      >
+        <Printer className="h-4 w-4" />
+        {autoImprimir ? "Imprime sozinho" : "Imprimir automático"}
+      </button>
+      <button className={modoTela ? "btn-primario" : "btn-secundario"} onClick={alternarTela}>
+        {modoTela ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        {modoTela ? "Sair da tela cheia" : "Tela cheia"}
+      </button>
+    </div>
+  );
 
   return (
-    <>
-      <Cabecalho
-        titulo="Cozinha"
-        subtitulo={`${ativos.length} pedido(s) em andamento · atualiza sozinho`}
-        acao={
-          <div className="flex gap-2">
-            <button className={som ? "btn-primario" : "btn-secundario"} onClick={alternarSom} title="Bipe quando chegar pedido">
-              {som ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-              {som ? "Som ligado" : "Ligar som"}
-            </button>
-            <button className="btn-secundario" onClick={alternarTelaCheia} title="Tela cheia">
-              {telaCheia ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </button>
+    <div className={modoTela ? "fixed inset-0 z-[60] overflow-y-auto bg-fundo pb-6" : ""}>
+      {modoTela ? (
+        <div className="fundo-barra sticky top-0 z-10 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 text-barra-texto shadow-lg md:px-6">
+          <p className="flex items-center gap-2 text-2xl font-black">
+            <ChefHat className="h-7 w-7" />
+            COZINHA
+          </p>
+          <p className="text-3xl font-black tabular-nums">{horaBR(new Date(agora).toISOString())}</p>
+          <div className="flex gap-4 text-sm font-bold">
+            <span className="text-blue-300">{contagem("NOVO")} novos</span>
+            <span className="text-amber-300">{contagem("PREPARANDO")} em preparo</span>
+            <span className="text-emerald-300">{contagem("PRONTO")} prontos</span>
           </div>
-        }
-      />
+          <div className="ml-auto">{botoes}</div>
+        </div>
+      ) : (
+        <Cabecalho titulo="Cozinha" subtitulo={`${ativos.length} pedido(s) em andamento · atualiza sozinho`} acao={botoes} />
+      )}
 
       {cancelamentos.length > 0 && (
-        <div className="mx-4 mb-4 space-y-1 rounded-2xl border-2 border-red-400 bg-red-50 p-3 md:mx-6 dark:border-red-800 dark:bg-red-950/40">
+        <div
+          className={`mx-4 mb-4 space-y-1 rounded-2xl border-2 border-red-400 bg-red-50 p-3 md:mx-6 dark:border-red-800 dark:bg-red-950/40 ${
+            modoTela ? "mt-4" : ""
+          }`}
+        >
           <p className="flex items-center gap-1.5 text-sm font-black text-red-700 dark:text-red-300">
             <Ban className="h-4 w-4" />
             Cancelados — não preparar
           </p>
           {cancelamentos.map(({ pedido, item }, i) => (
-            <p key={i} className="text-sm text-red-800 dark:text-red-200">
-              <strong>
-                {pedido.mesa ? `Mesa ${pedido.mesa}` : numeroVenda(pedido.comandaNumero)}
-              </strong>{" "}
-              · {item.qtd}× {item.nome}
+            <p key={i} className={`text-red-800 dark:text-red-200 ${modoTela ? "text-lg" : "text-sm"}`}>
+              <strong>{nomeDoPedido(pedido)}</strong> · {item.qtd}× {item.nome}
               {item.motivoCancelamento && <span className="text-red-600/80 dark:text-red-300/70"> — {item.motivoCancelamento}</span>}
               <span className="text-xs text-red-600/70"> · {horaBR(item.canceladoEm ?? "")}</span>
             </p>
@@ -202,27 +384,29 @@ function Painel() {
       )}
 
       {/* Celular: uma coluna por vez */}
-      <div className="mx-4 mb-3 grid grid-cols-3 gap-1 rounded-xl bg-superficie-2 p-1 md:hidden">
+      <div className={`mx-4 mb-3 grid grid-cols-3 gap-1 rounded-xl bg-superficie-2 p-1 md:hidden ${modoTela ? "mt-4" : ""}`}>
         {COLUNAS.map(({ status }) => (
           <button
             key={status}
             onClick={() => setColunaCelular(status)}
             className={`rounded-lg py-2 text-xs font-bold transition ${colunaCelular === status ? "bg-superficie shadow-sm" : "text-texto-suave"}`}
           >
-            {ROTULO_STATUS_PEDIDO[status]} ({ativos.filter((p) => p.status === status).length})
+            {ROTULO_STATUS_PEDIDO[status]} ({contagem(status)})
           </button>
         ))}
       </div>
 
       {!carregando && ativos.length === 0 ? (
-        <Vazio Icone={ChefHat} titulo="Nenhum pedido agora" descricao="Os pedidos que o garçom enviar aparecem aqui na hora." />
+        <div className={modoTela ? "mt-6" : ""}>
+          <Vazio Icone={ChefHat} titulo="Nenhum pedido agora" descricao="Os pedidos que o garçom enviar aparecem aqui na hora." />
+        </div>
       ) : (
-        <div className="grid gap-4 px-4 md:grid-cols-3 md:px-6">
+        <div className={`grid gap-4 px-4 md:grid-cols-3 md:px-6 ${modoTela ? "mt-4 lg:[zoom:1.2]" : ""}`}>
           {COLUNAS.map(({ status, titulo, Icone, cor }) => {
             const daColuna = ativos.filter((p) => p.status === status);
             return (
               <section key={status} className={colunaCelular === status ? "" : "hidden md:block"}>
-                <h2 className={`mb-2 hidden items-center gap-1.5 text-sm font-black md:flex ${cor}`}>
+                <h2 className={`mb-2 hidden items-center gap-1.5 font-black md:flex ${modoTela ? "text-lg" : "text-sm"} ${cor}`}>
                   <Icone className="h-4 w-4" />
                   {titulo}
                   <span className="ml-auto rounded-full bg-superficie-2 px-2 py-0.5 text-xs text-texto tabular-nums">
@@ -238,26 +422,24 @@ function Painel() {
                   {daColuna.map((p) => {
                     const min = minutosDesde(p.criadoEm, agora);
                     const nivel = status === "PRONTO" ? "ok" : nivelEspera(min);
-                    const recente = agora - new Date(p.criadoEm).getTime() < 60_000 && status === "NOVO";
+                    const recente = agora - new Date(p.criadoEm).getTime() < 90_000 && status === "NOVO";
                     return (
                       <article
                         key={p.id}
                         className={`card animate-entrar border-l-[6px] p-4 ${BORDA_ESPERA[nivel]} ${
-                          recente ? "ring-4 ring-blue-400/40" : ""
+                          recente ? "ring-4 ring-blue-500 shadow-[0_0_0_10px_rgb(59_130_246/0.25)]" : ""
                         }`}
                       >
                         <header className="mb-2 flex items-start gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="text-2xl leading-none font-black">
-                              {p.mesa ? `Mesa ${p.mesa}` : (p.clienteNome ?? "Balcão")}
-                            </p>
+                            <p className="text-3xl leading-none font-black">{nomeDoPedido(p)}</p>
                             <p className="mt-1 text-xs text-texto-suave">
                               Comanda {numeroVenda(p.comandaNumero)} · pedido {p.sequencia}
                               {p.garcom ? ` · ${p.garcom}` : ""}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className={`flex items-center justify-end gap-1 text-lg font-black tabular-nums ${TEXTO_ESPERA[nivel]}`}>
+                            <p className={`flex items-center justify-end gap-1 text-xl font-black tabular-nums ${TEXTO_ESPERA[nivel]}`}>
                               <Clock className="h-4 w-4" />
                               {min} min
                             </p>
@@ -290,6 +472,14 @@ function Painel() {
                               <Undo2 className="h-4 w-4" />
                             </button>
                           )}
+                          <button
+                            className={`btn-secundario px-3 ${p.impressoEm ? "" : "border-acento text-acento"}`}
+                            onClick={() => imprimirPedidos([p])}
+                            title={p.impressoEm ? `Impresso às ${horaBR(p.impressoEm)} — imprimir de novo` : "Imprimir cupom"}
+                            aria-label="Imprimir cupom"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </button>
                           {status === "NOVO" && (
                             <button
                               className="btn flex-1 bg-amber-500 py-3 text-base font-black text-white hover:bg-amber-600"
@@ -324,8 +514,24 @@ function Painel() {
         </div>
       )}
 
+      {/* Aviso que toma a tela quando chega pedido ou cancelamento */}
+      {alerta && (
+        <button
+          type="button"
+          onClick={() => setAlerta(null)}
+          className={`fixed inset-0 z-[90] flex animate-aparecer flex-col items-center justify-center gap-4 p-6 text-center text-white ${alerta.cor}`}
+        >
+          <span className="absolute inset-0 animate-pulse bg-white/15" aria-hidden />
+          <BellRing className="relative h-20 w-20 animate-bounce" />
+          <span className="relative text-5xl font-black tracking-tight md:text-7xl">{alerta.titulo}</span>
+          <span className="relative max-w-3xl text-2xl font-bold md:text-4xl">{alerta.detalhe}</span>
+          <span className="relative mt-4 text-sm font-semibold opacity-80">Toque pra fechar</span>
+        </button>
+      )}
+
+      {area}
       <ModalCancelarPedido alvo={cancelando} aoFechar={() => setCancelando(null)} />
-    </>
+    </div>
   );
 }
 
