@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ClipboardList, ShoppingCart } from "lucide-react";
+import { CheckCircle2, ClipboardList, Printer, ShoppingCart, X } from "lucide-react";
 import { Cabecalho, Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import {
@@ -14,6 +14,9 @@ import {
   useAcoesVenda,
 } from "@/components/Vendas";
 import { DetalheVenda } from "@/components/DetalheVenda";
+import { BotaoImprimirVenda, useImprimirVenda } from "@/components/CupomVenda";
+
+const CHAVE_IMPRIMIR = "jardins:vender-imprimir-cupom";
 import { MiniBrinde } from "@/components/Brinde";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -52,6 +55,22 @@ function VendasInterno() {
   const [escolhendoComanda, setEscolhendoComanda] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; brinde: boolean } | null>(null);
   const [vendo, setVendo] = useState<Venda | null>(null);
+  /** Última venda fechada aqui — fica à mão pra imprimir o cupom. */
+  const [ultima, setUltima] = useState<Venda | null>(null);
+  // Imprimir o cupom sozinho ao finalizar — escolha lembrada neste computador.
+  const [imprimirAoFechar, setImprimirAoFechar] = useState(true);
+  const impressao = useImprimirVenda();
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(CHAVE_IMPRIMIR) === "nao") setImprimirAoFechar(false);
+    } catch {}
+  }, []);
+  function mudarImprimir(sim: boolean) {
+    setImprimirAoFechar(sim);
+    try {
+      localStorage.setItem(CHAVE_IMPRIMIR, sim ? "sim" : "nao");
+    } catch {}
+  }
 
   const total = subtotalItens(itens);
   const qtdItens = itens.reduce((s, i) => s + i.qtd, 0);
@@ -100,7 +119,9 @@ function VendasInterno() {
       proximoNumeroVenda(),
     );
     const final = await finalizar(venda, r);
+    setUltima(final);
     setPagando(false);
+    if (imprimirAoFechar) impressao.imprimir(final);
     limpar();
     mostrarAviso(`Venda ${numeroVenda(final.numero)} finalizada — ${brl(totalVenda(final))}`, true);
   }
@@ -206,6 +227,24 @@ function VendasInterno() {
         </div>
       )}
 
+      {ultima && (
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 md:mx-6 dark:border-emerald-900 dark:bg-emerald-950/40">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          <span className="min-w-0 flex-1 text-sm font-semibold">
+            Venda {numeroVenda(ultima.numero)} · {brl(totalVenda(ultima))}
+          </span>
+          <BotaoImprimirVenda venda={ultima} className="btn-primario px-3 py-1.5 text-sm" />
+          <button
+            type="button"
+            className="grid h-8 w-8 place-items-center rounded-lg text-texto-suave hover:bg-superficie-2"
+            onClick={() => setUltima(null)}
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-4 px-4 md:px-6 xl:grid-cols-[1fr_360px]">
         <div className="min-w-0">
           <SeletorProdutos
@@ -292,9 +331,22 @@ function VendasInterno() {
         aPagar={total}
         permitePrazo={false}
         textoConfirmar="Finalizar venda"
+        extra={
+          <label className="flex items-center gap-2 rounded-xl border border-borda px-3 py-2.5 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={imprimirAoFechar}
+              onChange={(e) => mudarImprimir(e.target.checked)}
+              className="h-4 w-4 accent-[var(--acento)]"
+            />
+            <Printer className="h-4 w-4 text-texto-suave" />
+            Imprimir cupom ao finalizar
+          </label>
+        }
         aoFechar={() => setPagando(false)}
         aoConfirmar={cobrar}
       />
+      {impressao.area}
 
       <ModalEscolherComanda
         aberto={escolhendoComanda}

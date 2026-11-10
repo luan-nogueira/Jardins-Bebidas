@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui";
 import { ListaItens, ModalPagamento, useAcoesVenda } from "@/components/Vendas";
+import { BotaoImprimirVenda } from "@/components/CupomVenda";
 import { useAuth } from "@/lib/auth";
 import { useDados } from "@/lib/store";
 import { brl, dataBR, dataHoraBR, hojeISO } from "@/lib/format";
@@ -72,6 +73,7 @@ export function DetalheVenda({
               <span />
             )}
             <div className="flex gap-2">
+              {!cancelada && <BotaoImprimirVenda venda={venda} />}
               {venda.status === "ABERTA" && aoAbrirComanda && (
                 <button className="btn-primario" onClick={() => aoAbrirComanda(venda)}>
                   Abrir comanda

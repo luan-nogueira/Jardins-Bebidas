@@ -9,6 +9,7 @@ import { Protegido } from "@/components/Protegido";
 import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/components/Vendas";
 import { BotaoAbaterValor, BotaoPagarSeparado, ResumoConta } from "@/components/PagarSeparado";
 import { DetalheVenda } from "@/components/DetalheVenda";
+import { BotaoImprimirVenda } from "@/components/CupomVenda";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
@@ -140,6 +141,7 @@ function VerComanda() {
                 <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
               </div>
               <ResumoConta venda={c} />
+              <BotaoImprimirVenda venda={c} className="btn-secundario w-full" />
               <button className="btn-primario w-full" onClick={() => setEditando(true)}>
                 <Pencil className="h-4 w-4" />
                 Editar / cobrar comanda
@@ -186,6 +188,7 @@ function VerComanda() {
               <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
             </div>
             <ResumoConta venda={c} />
+            <BotaoImprimirVenda venda={c} className="btn-secundario w-full" />
             <BotaoPagarSeparado venda={c} />
             <BotaoAbaterValor venda={c} />
             <button

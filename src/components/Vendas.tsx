@@ -526,9 +526,11 @@ export function ModalPagamento({
   aPagar,
   permitePrazo,
   textoConfirmar = "Confirmar",
+  extra,
   aoFechar,
   aoConfirmar,
 }: {
+  extra?: React.ReactNode;
   aberto: boolean;
   titulo?: string;
   /** Quanto falta pagar agora. */
@@ -545,6 +547,7 @@ export function ModalPagamento({
           aPagar={aPagar}
           permitePrazo={permitePrazo}
           textoConfirmar={textoConfirmar}
+          extra={extra}
           aoCancelar={aoFechar}
           aoConfirmar={aoConfirmar}
         />
@@ -557,9 +560,11 @@ function FormPagamento({
   aPagar: cheio,
   permitePrazo,
   textoConfirmar,
+  extra,
   aoCancelar,
   aoConfirmar,
 }: {
+  extra?: React.ReactNode;
   aPagar: number;
   permitePrazo: boolean;
   textoConfirmar: string;
@@ -774,6 +779,8 @@ function FormPagamento({
           )}
         </div>
       )}
+
+      {extra}
 
       <div className="flex justify-end gap-2 border-t border-borda pt-4">
         <button type="button" className="btn-secundario" onClick={aoCancelar} disabled={salvando}>
