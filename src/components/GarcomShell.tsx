@@ -6,6 +6,7 @@ import { Download, LogOut, Share, X } from "lucide-react";
 import { LogoMarca } from "./Logo";
 import { TemaBotao } from "./TemaBotao";
 import { Modal } from "./ui";
+import { AvisoPedidoPronto } from "./AvisoPedidoPronto";
 import { useAuth } from "@/lib/auth";
 import { useDados } from "@/lib/store";
 
@@ -66,6 +67,7 @@ export function GarcomShell({ children }: { children: React.ReactNode }) {
       )}
 
       <DicaIphone />
+      {permissoes.comandas && <AvisoPedidoPronto />}
 
       <main className="mx-auto w-full max-w-5xl animate-aparecer">
         {permissoes.comandas ? (

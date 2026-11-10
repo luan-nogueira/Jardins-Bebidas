@@ -137,6 +137,9 @@ const TEXTO_ESPERA = {
   atrasado: "text-red-600 dark:text-red-400",
 };
 
+/** Quanto tempo a tela de aviso (novo pedido / cancelado) fica antes de sumir. */
+const DURACAO_ALERTA = 6000;
+
 function nomeDoPedido(p: Pedido) {
   return p.mesa ? `Mesa ${p.mesa}` : (p.clienteNome ?? "Balcão");
 }
@@ -150,7 +153,7 @@ function Painel() {
   const [som, setSom] = useState(false);
   const [autoImprimir, setAutoImprimir] = useState(false);
   const [modoTela, setModoTela] = useState(false);
-  const [alerta, setAlerta] = useState<{ titulo: string; detalhe: string; cor: string } | null>(null);
+  const [alerta, setAlerta] = useState<{ id: number; titulo: string; detalhe: string; cor: string } | null>(null);
   const { imprimir, area } = useImpressaoCozinha();
 
   const audio = useRef<AudioContext | null>(null);
@@ -228,6 +231,7 @@ function Painel() {
       tocar("pedido");
       navigator.vibrate?.([400, 150, 400, 150, 400]);
       setAlerta({
+        id: Date.now(),
         titulo: chegaram.length > 1 ? `${chegaram.length} NOVOS PEDIDOS` : "NOVO PEDIDO",
         detalhe: chegaram.map(nomeDoPedido).join(" · "),
         cor: "bg-blue-600",
@@ -237,6 +241,7 @@ function Painel() {
       tocar("curto");
       navigator.vibrate?.([600]);
       setAlerta({
+        id: Date.now(),
         titulo: "CANCELADO",
         detalhe: cancelNovos.map((c) => `${nomeDoPedido(c.pedido)}: ${c.itens.map((i) => `${i.qtd}× ${i.nome}`).join(", ")}`).join(" · "),
         cor: "bg-red-600",
@@ -256,7 +261,7 @@ function Painel() {
   // O alerta some sozinho.
   useEffect(() => {
     if (!alerta) return;
-    const t = setTimeout(() => setAlerta(null), 7000);
+    const t = setTimeout(() => setAlerta(null), DURACAO_ALERTA);
     return () => clearTimeout(t);
   }, [alerta]);
 
@@ -526,7 +531,14 @@ function Painel() {
           <BellRing className="relative h-20 w-20 animate-bounce" />
           <span className="relative text-5xl font-black tracking-tight md:text-7xl">{alerta.titulo}</span>
           <span className="relative max-w-3xl text-2xl font-bold md:text-4xl">{alerta.detalhe}</span>
-          <span className="relative mt-4 text-sm font-semibold opacity-80">Toque pra fechar</span>
+          <span className="relative mt-4 text-sm font-semibold opacity-80">Some sozinho · toque pra fechar agora</span>
+          {/* Barrinha do tempo até sumir */}
+          <span
+            key={alerta.id}
+            className="absolute inset-x-0 bottom-0 h-2 origin-left animate-esvaziar bg-white/70"
+            style={{ animationDuration: `${DURACAO_ALERTA}ms` }}
+            aria-hidden
+          />
         </button>
       )}
 

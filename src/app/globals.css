@@ -52,6 +52,7 @@
   --animate-folha: folha 0.38s var(--ease-mola) both;
   --animate-surgir: surgir 0.28s var(--ease-mola) both;
   --animate-toast: toast 0.45s var(--ease-mola) both;
+  --animate-esvaziar: esvaziar 6s linear both;
   --animate-crescer-y: crescer-y 0.7s var(--ease-mola) both;
   --animate-crescer-x: crescer-x 0.7s var(--ease-mola) both;
   --animate-flutuar: flutuar 5s ease-in-out infinite;
@@ -109,6 +110,10 @@
   @keyframes surgir {
     from { opacity: 0; transform: translateY(12px) scale(0.97); }
     to   { opacity: 1; transform: none; }
+  }
+  @keyframes esvaziar {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
   }
   @keyframes toast {
     from { opacity: 0; transform: translateY(-16px) scale(0.96); }
