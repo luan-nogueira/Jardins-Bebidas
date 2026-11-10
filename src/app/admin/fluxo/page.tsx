@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { Cabecalho } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
+import { ImportarFechamento } from "@/components/ImportarFechamento";
+import { useAuth } from "@/lib/auth";
 import { BarrasHorizontais, CartaoGrafico, SemDados } from "@/components/Graficos";
 import { useDados } from "@/lib/store";
 import { brl, dataBR, hojeISO } from "@/lib/format";
@@ -80,6 +82,7 @@ function resumoDoMes(
 
 function Fluxo() {
   const { vendas, contasPagar, movimentos } = useDados();
+  const { ehAdmin } = useAuth();
   const mesAtual = hojeISO().slice(0, 7);
   const [mes, setMes] = useState(mesAtual);
 
@@ -164,7 +167,11 @@ function Fluxo() {
 
   return (
     <>
-      <Cabecalho titulo="Fluxo de caixa" subtitulo="Tudo que entrou e saiu do caixa, por forma de pagamento" />
+      <Cabecalho
+        titulo="Fluxo de caixa"
+        subtitulo="Tudo que entrou e saiu do caixa, por forma de pagamento"
+        acao={ehAdmin ? <ImportarFechamento /> : undefined}
+      />
 
       <div className="space-y-4 px-4 pb-8 md:px-6">
         <div className="flex items-center gap-2 md:max-w-md">
