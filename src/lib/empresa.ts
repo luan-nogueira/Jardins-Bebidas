@@ -5,7 +5,7 @@
  */
 export const EMPRESA = {
   nome: "Jardins Bebidas",
-  documento: "",
+  documento: "64.328.341/0001-73",
   telefone: "(22) 99609-6383",
   /** Só dígitos, com DDI — é o que o link wa.me aceita. */
   whatsapp: "5522996096383",
