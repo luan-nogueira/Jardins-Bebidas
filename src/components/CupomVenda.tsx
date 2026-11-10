@@ -38,7 +38,7 @@ function Linha({ esq, dir, forte = false, grande = false }: { esq: string; dir: 
         justifyContent: "space-between",
         gap: "2mm",
         fontSize: grande ? "13pt" : "10pt",
-        fontWeight: forte ? 900 : 400,
+        fontWeight: forte ? 900 : 700,
       }}
     >
       <span>{esq}</span>
@@ -59,6 +59,8 @@ function CupomUnico({ venda: v }: { venda: Venda }) {
         width: "72mm",
         padding: "3mm 3mm 8mm",
         fontFamily: "'Courier New', Courier, monospace",
+        // Térmica imprime fino: tudo em negrito pra sair escuro.
+        fontWeight: 700,
         color: "#000",
         background: "#fff",
         breakAfter: "page",
@@ -66,15 +68,15 @@ function CupomUnico({ venda: v }: { venda: Venda }) {
       }}
     >
       <p style={{ textAlign: "center", fontSize: "13pt", fontWeight: 900 }}>{EMPRESA.nome.toUpperCase()}</p>
-      {EMPRESA.documento && <p style={{ textAlign: "center", fontSize: "9pt" }}>CNPJ {EMPRESA.documento}</p>}
-      <p style={{ textAlign: "center", fontSize: "9pt" }}>{EMPRESA.endereco}</p>
-      <p style={{ textAlign: "center", fontSize: "9pt" }}>{EMPRESA.cidade}</p>
-      <p style={{ textAlign: "center", fontSize: "9pt" }}>Tel {EMPRESA.telefone}</p>
+      {EMPRESA.documento && <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>CNPJ {EMPRESA.documento}</p>}
+      <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>{EMPRESA.endereco}</p>
+      <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>{EMPRESA.cidade}</p>
+      <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>Tel {EMPRESA.telefone}</p>
       {sep}
       <p style={{ textAlign: "center", fontSize: "11pt", fontWeight: 900 }}>
         {aberta ? "CONFERÊNCIA DE CONTA" : "COMPROVANTE DE VENDA"}
       </p>
-      <p style={{ textAlign: "center", fontSize: "9pt", fontWeight: 700 }}>NÃO É DOCUMENTO FISCAL</p>
+      <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>NÃO É DOCUMENTO FISCAL</p>
       {sep}
       <p style={{ fontSize: "10pt" }}>
         {v.tipo === "COMANDA" ? "Comanda" : "Venda"} {numeroVenda(v.numero)}
@@ -114,7 +116,7 @@ function CupomUnico({ venda: v }: { venda: Venda }) {
       )}
       {sep}
       <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>Obrigado pela preferência!</p>
-      {EMPRESA.instagram && <p style={{ textAlign: "center", fontSize: "9pt" }}>{EMPRESA.instagram}</p>}
+      {EMPRESA.instagram && <p style={{ textAlign: "center", fontSize: "10pt", fontWeight: 700 }}>{EMPRESA.instagram}</p>}
     </div>
   );
 }

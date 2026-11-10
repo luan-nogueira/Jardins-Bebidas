@@ -34,6 +34,8 @@ function CupomUnico({ cupom }: { cupom: Cupom }) {
         width: "72mm",
         padding: "3mm 3mm 8mm",
         fontFamily: "'Courier New', Courier, monospace",
+        // Térmica imprime fino: tudo em negrito pra sair escuro.
+        fontWeight: 700,
         color: "#000",
         background: "#fff",
         breakAfter: "page",
