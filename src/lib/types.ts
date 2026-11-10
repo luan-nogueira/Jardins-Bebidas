@@ -320,3 +320,54 @@ export interface ContaPagar {
   temComprovante?: boolean;
   criadoEm: string;
 }
+
+/** Sangria (tirou dinheiro da gaveta) ou reforço (pôs dinheiro na gaveta). */
+export interface CaixaMovimento {
+  id: string;
+  tipo: "SANGRIA" | "REFORCO";
+  valor: number;
+  /** Obrigatório: pra que foi o dinheiro. */
+  motivo: string;
+  /** Categoria do gasto (sangria lançada em Gastos). */
+  categoria?: string;
+  /** Quem tirou/pôs o dinheiro. */
+  quem: string;
+  /** Quem registrou no sistema. */
+  registradoPor: string;
+  data: string;
+  /** Gasto criado junto (tela Gastos / Fluxo de caixa). */
+  gastoId?: string;
+}
+
+/** Resumo gravado no fechamento (fica igual mesmo se mexerem nas vendas depois). */
+export interface CaixaResumo {
+  vendas: number;
+  totalVendido: number;
+  descontos: number;
+  canceladas: number;
+  totalCancelado: number;
+  porForma: Partial<Record<FormaPagamento, number>>;
+  totalRecebido: number;
+  aPrazo: number;
+  sangrias: number;
+  reforcos: number;
+  dinheiroEsperado: number;
+}
+
+/** Turno do caixa: abre com o fundo de troco e só fecha quando alguém aperta "Fechar caixa". */
+export interface Caixa {
+  id: string;
+  numero: number;
+  status: "ABERTO" | "FECHADO";
+  abertoEm: string;
+  abertoPor: string;
+  /** Dinheiro que já estava na gaveta (troco) ao abrir. */
+  fundoTroco: number;
+  movimentos: CaixaMovimento[];
+  fechadoEm?: string;
+  fechadoPor?: string;
+  /** Dinheiro contado na gaveta ao fechar. */
+  contado?: number;
+  obsFechamento?: string;
+  resumo?: CaixaResumo;
+}

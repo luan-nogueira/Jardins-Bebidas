@@ -24,6 +24,7 @@ import {
   UtensilsCrossed,
   Wallet,
   type LucideIcon,
+  Banknote,
 } from "lucide-react";
 import { Logo, LogoMarca } from "./Logo";
 import { TemaBotao } from "./TemaBotao";
@@ -37,6 +38,7 @@ import type { Permissoes } from "@/lib/types";
 const ITENS = [
   { href: "/admin", rotulo: "Painel", Icone: Home, chave: null },
   { href: "/admin/vendas", rotulo: "Vender", Icone: ShoppingCart, chave: "vendas" },
+  { href: "/admin/caixa", rotulo: "Caixa", Icone: Banknote, chave: "vendas" },
   { href: "/admin/salao", rotulo: "Salão", Icone: UtensilsCrossed, chave: "comandas" },
   { href: "/admin/cozinha", rotulo: "Cozinha", Icone: ChefHat, chave: "cozinha" },
   { href: "/admin/comandas", rotulo: "Comandas", Icone: ClipboardList, chave: "comandas" },

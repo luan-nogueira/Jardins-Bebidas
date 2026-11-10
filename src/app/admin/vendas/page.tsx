@@ -16,6 +16,8 @@ import {
 } from "@/components/Vendas";
 import { DetalheVenda } from "@/components/DetalheVenda";
 import { HistoricoVendas } from "@/components/HistoricoVendas";
+import Link from "next/link";
+import { useCaixas } from "@/lib/caixa";
 import { BotaoImprimirVenda, useImprimirVenda } from "@/components/CupomVenda";
 
 const CHAVE_IMPRIMIR = "jardins:vender-imprimir-cupom";
@@ -55,6 +57,7 @@ function VendasInterno() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
   const [verHistorico, setVerHistorico] = useState(false);
+  const caixa = useCaixas();
   const [pagando, setPagando] = useState(false);
   const [escolhendoComanda, setEscolhendoComanda] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; brinde: boolean } | null>(null);
@@ -228,6 +231,17 @@ function VendasInterno() {
             {aviso.brinde && <span className="block text-xs font-black tracking-wide uppercase opacity-80">Tim-tim!</span>}
             {aviso.texto}
           </span>
+        </div>
+      )}
+
+      {!caixa.carregando && !caixa.aberto && (
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm md:mx-6 dark:border-amber-900 dark:bg-amber-950/40">
+          <span className="min-w-0 flex-1 font-semibold text-amber-900 dark:text-amber-300">
+            O caixa está fechado. Abra o caixa pra as vendas entrarem no fechamento do dia.
+          </span>
+          <Link href="/admin/caixa" className="btn-primario px-3 py-1.5 text-sm">
+            Abrir caixa
+          </Link>
         </div>
       )}
 

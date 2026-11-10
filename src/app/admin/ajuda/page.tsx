@@ -164,6 +164,33 @@ const TAREFAS: Tarefa[] = [
     Icone: ShieldCheck,
     chave: null,
   },
+  {
+    titulo: "Fechar o caixa do dia",
+    quando: "Começo e fim do expediente, ou quando tirar dinheiro da gaveta.",
+    passos: [
+      "No começo, abra Caixa → Abrir caixa e informe o troco que está na gaveta.",
+      "Precisou tirar dinheiro? Toque em Sangria, diga quanto, pra quê e quem tirou. Colocou dinheiro? Use Reforço.",
+      "No fim, toque em Fechar caixa, conte o dinheiro da gaveta e digite. O sistema mostra se sobrou ou faltou.",
+      "O relatório em PDF baixa na hora e fica guardado em Caixas fechados.",
+    ],
+    href: "/admin/caixa",
+    botao: "Abrir Caixa",
+    Icone: Wallet,
+    chave: "vendas",
+  },
+  {
+    titulo: "Apagar testes",
+    quando: "Fez vendas ou comandas de teste e quer limpar.",
+    passos: [
+      "Escolha o dia. Aparecem as vendas, comandas e caixas daquele dia.",
+      "Desmarque o que foi venda de verdade.",
+      "Digite APAGAR e confirme. O estoque volta sozinho.",
+    ],
+    href: "/admin/limpar-testes",
+    botao: "Apagar testes",
+    Icone: ShieldCheck,
+    chave: null,
+  },
 ];
 
 export default function AjudaPage() {

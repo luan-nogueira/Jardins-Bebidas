@@ -102,6 +102,11 @@ service cloud.firestore {
       allow create, update: if logado() && contaAtiva() && request.resource.data.uid == request.auth.uid;
     }
 
+    // Caixa (abertura, sangria, reforço e fechamento): quem vende ou o financeiro.
+    match /caixas/{doc} {
+      allow read, write: if vende() || temPermissao("financeiro");
+    }
+
     match /usuarios/{uid} {
       allow read: if logado() && (request.auth.uid == uid || ehAdmin());
       allow write: if ehAdmin();
