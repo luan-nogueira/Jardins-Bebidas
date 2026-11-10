@@ -83,7 +83,9 @@ export function precoDe(produto: Produto, retirada = false): number {
 export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1, retirada = false): VendaItem[] {
   const preco = precoDe(produto, retirada);
   const comRetirada = retirada && !!produto.precoRetirada;
-  const i = itens.findIndex((x) => x.produtoId === produto.id && x.precoUn === preco && !!x.retirada === comRetirada);
+  const i = itens.findIndex(
+    (x) => x.produtoId === produto.id && x.precoUn === preco && !!x.retirada === comRetirada && !x.fator,
+  );
   if (i >= 0) {
     const novos = [...itens];
     novos[i] = { ...novos[i], qtd: novos[i].qtd + qtd };
@@ -99,6 +101,38 @@ export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1, ret
       precoUn: preco,
       ...(comRetirada && { retirada: true }),
       custoUn: produto.precoCusto || 0,
+    },
+  ];
+}
+
+/** Cigarro e afins: na hora de vender pergunta se é o maço ou a unidade. */
+export function vendePorMaco(p: Produto): boolean {
+  return p.unPorCaixa > 1 && /tabac|cigar|fumo/i.test(`${p.categoria} ${p.nome}`);
+}
+
+export function precoMaco(p: Produto): number {
+  return p.precoPacote && p.precoPacote > 0 ? p.precoPacote : Math.round(p.precoUn * p.unPorCaixa * 100) / 100;
+}
+
+/** Põe maço(s) na venda: 1 item = 1 maço, e cada um baixa unPorCaixa unidades do estoque. */
+export function adicionarMaco(itens: VendaItem[], produto: Produto, qtd = 1): VendaItem[] {
+  const preco = precoMaco(produto);
+  const i = itens.findIndex((x) => x.produtoId === produto.id && x.fator === produto.unPorCaixa && x.precoUn === preco);
+  if (i >= 0) {
+    const novos = [...itens];
+    novos[i] = { ...novos[i], qtd: novos[i].qtd + qtd };
+    return novos;
+  }
+  return [
+    ...itens,
+    {
+      produtoId: produto.id,
+      nome: `${produto.nome} (maço)`,
+      categoria: produto.categoria || "Sem categoria",
+      qtd,
+      precoUn: preco,
+      custoUn: (produto.precoCusto || 0) * produto.unPorCaixa,
+      fator: produto.unPorCaixa,
     },
   ];
 }
@@ -121,7 +155,8 @@ export async function baixarEstoqueVenda(venda: Venda, deps: DepsEstoque) {
   const porProduto = new Map<string, { nome: string; qtd: number }>();
   for (const i of venda.itens) {
     const atual = porProduto.get(i.produtoId) ?? { nome: i.nome, qtd: 0 };
-    atual.qtd += i.qtd;
+    // Maço: cada item leva "fator" unidades do estoque.
+    atual.qtd += i.qtd * (i.fator ?? 1);
     porProduto.set(i.produtoId, atual);
   }
   for (const [produtoId, { nome, qtd }] of porProduto) {

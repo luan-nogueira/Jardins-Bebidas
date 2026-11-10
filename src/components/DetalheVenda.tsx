@@ -16,7 +16,7 @@ import {
   subtotalItens,
   totalVenda,
 } from "@/lib/vendas";
-import { adicionarItem } from "@/lib/vendas";
+import { adicionarItem, adicionarMaco } from "@/lib/vendas";
 import type { Venda, VendaItem } from "@/lib/types";
 
 export function ChipStatusVenda({ venda }: { venda: Venda }) {
@@ -333,6 +333,7 @@ function EditarItens({
             <SeletorProdutos
               retirada={!!venda.retirada}
               aoEscolher={(p, qtd) => aoMudar(adicionarItem(itens, p, qtd, !!venda.retirada))}
+              aoEscolherMaco={(p) => aoMudar(adicionarMaco(itens, p))}
             />
           </div>
         </div>

@@ -31,6 +31,7 @@ type Formulario = {
   unPorCaixa: string;
   precoUn: string;
   precoRetirada: string;
+  precoPacote: string;
   precoTabela2: string;
   precoTabela3: string;
   precoCusto: string;
@@ -50,6 +51,7 @@ const FORM_VAZIO: Formulario = {
   unPorCaixa: "1",
   precoUn: "",
   precoRetirada: "",
+  precoPacote: "",
   precoTabela2: "",
   precoTabela3: "",
   precoCusto: "",
@@ -191,6 +193,7 @@ function ProdutosPageInterno() {
       unPorCaixa: String(p.unPorCaixa),
       precoUn: paraCampo(p.precoUn),
       precoRetirada: p.precoRetirada ? paraCampo(p.precoRetirada) : "",
+      precoPacote: p.precoPacote ? paraCampo(p.precoPacote) : "",
       precoTabela2: p.precoTabela2 ? paraCampo(p.precoTabela2) : "",
       precoTabela3: p.precoTabela3 ? paraCampo(p.precoTabela3) : "",
       precoCusto: paraCampo(p.precoCusto),
@@ -222,6 +225,7 @@ function ProdutosPageInterno() {
       unPorCaixa: Math.max(1, Math.round(paraNumero(form.unPorCaixa))),
       precoUn: paraNumero(form.precoUn),
       precoRetirada: paraNumero(form.precoRetirada) > 0 ? paraNumero(form.precoRetirada) : undefined,
+      precoPacote: paraNumero(form.precoPacote) > 0 ? paraNumero(form.precoPacote) : undefined,
       precoTabela2: form.precoTabela2 ? paraNumero(form.precoTabela2) : undefined,
       precoTabela3: form.precoTabela3 ? paraNumero(form.precoTabela3) : undefined,
       precoCusto: paraNumero(form.precoCusto),
@@ -540,6 +544,29 @@ function ProdutosPageInterno() {
                 onChange={(e) => setForm({ ...form, precoRetirada: e.target.value })}
               />
             </div>
+            {/tabac|cigar|fumo/i.test(`${form.categoria} ${form.nome}`) && (
+              <div>
+                <label className="rotulo" htmlFor="preco-maco">
+                  Preço do maço (R$)
+                </label>
+                <input
+                  id="preco-maco"
+                  className="campo"
+                  inputMode="decimal"
+                  placeholder={
+                    paraNumero(form.unPorCaixa) > 1 && paraNumero(form.precoUn) > 0
+                      ? `${brl(paraNumero(form.precoUn) * paraNumero(form.unPorCaixa))} (${form.unPorCaixa} × unidade)`
+                      : "Ex.: 12,00"
+                  }
+                  value={form.precoPacote}
+                  onChange={(e) => setForm({ ...form, precoPacote: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-texto-suave">
+                  O preço acima é o da unidade (cigarro avulso). Em &quot;Unidades na caixa&quot;, coloque quantos vêm
+                  no maço (normalmente 20). Na venda o sistema pergunta: maço ou unidade?
+                </p>
+              </div>
+            )}
             {permissoes.verCusto && (
               <p className="text-xs text-texto-suave">
                 O custo se atualiza sozinho quando você lança uma entrada (compra) deste produto.

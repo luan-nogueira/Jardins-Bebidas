@@ -25,6 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { brl, horaBR, hojeISO } from "@/lib/format";
 import {
   adicionarItem,
+  adicionarMaco,
   diaDaVenda,
   numeroVenda,
   subtotalItens,
@@ -265,6 +266,7 @@ function VendasInterno() {
             <SeletorProdutos
               retirada={retirada}
               aoEscolher={(p, qtd) => setItens((its) => adicionarItem(its, p, qtd, retirada))}
+              aoEscolherMaco={(p) => setItens((its) => adicionarMaco(its, p))}
             />
           )}
 

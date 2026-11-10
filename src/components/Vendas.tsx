@@ -15,6 +15,8 @@ import {
   estornarEstoqueVenda,
   precoDe,
   subtotalItens,
+  precoMaco,
+  vendePorMaco,
 } from "@/lib/vendas";
 import type {
   Cliente,
@@ -32,10 +34,13 @@ import type {
 
 export function SeletorProdutos({
   aoEscolher,
+  aoEscolherMaco,
   retirada = false,
   aoMudarRetirada,
 }: {
   aoEscolher: (p: Produto, qtd?: number) => void;
+  /** Com isso, cigarro pergunta "maço ou unidade?" ao tocar. */
+  aoEscolherMaco?: (p: Produto) => void;
   /** Mostra o preço de retirada nos cartões. */
   retirada?: boolean;
   /** Com isso aparece a chave "Consumo no local / Retirada". */
@@ -112,13 +117,51 @@ export function SeletorProdutos({
   // Conta os toques no último produto escolhido, pra repetir o "pulo" do
   // cartão a cada toque (a animação reinicia quando a key muda).
   const [toques, setToques] = useState({ id: "", n: 0 });
+  const [perguntando, setPerguntando] = useState<Produto | null>(null);
   function escolher(p: Produto, qtd = 1) {
+    if (aoEscolherMaco && vendePorMaco(p)) {
+      setPerguntando(p);
+      return;
+    }
     setToques((t) => ({ id: p.id, n: t.id === p.id ? t.n + 1 : 1 }));
     aoEscolher(p, qtd);
+  }
+  function escolherDoModal(maco: boolean) {
+    const p = perguntando;
+    if (!p) return;
+    setPerguntando(null);
+    setToques((t) => ({ id: p.id, n: t.id === p.id ? t.n + 1 : 1 }));
+    if (maco) aoEscolherMaco?.(p);
+    else aoEscolher(p, 1);
   }
 
   return (
     <div>
+      <Modal aberto={!!perguntando} aoFechar={() => setPerguntando(null)} titulo={perguntando?.nome ?? ""}>
+        {perguntando && (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              autoFocus
+              className="flex flex-col items-center gap-1 rounded-2xl border-2 border-acento bg-acento/10 p-5 transition hover:bg-acento/20 active:scale-95"
+              onClick={() => escolherDoModal(true)}
+            >
+              <span className="text-xl font-black">Maço</span>
+              <span className="text-xs text-texto-suave">{perguntando.unPorCaixa} unidades</span>
+              <span className="text-lg font-black text-acento tabular-nums">{brl(precoMaco(perguntando))}</span>
+            </button>
+            <button
+              type="button"
+              className="flex flex-col items-center gap-1 rounded-2xl border-2 border-borda p-5 transition hover:bg-superficie-2 active:scale-95"
+              onClick={() => escolherDoModal(false)}
+            >
+              <span className="text-xl font-black">Unidade</span>
+              <span className="text-xs text-texto-suave">avulso</span>
+              <span className="text-lg font-black text-acento tabular-nums">{brl(precoDe(perguntando, retirada))}</span>
+            </button>
+          </div>
+        )}
+      </Modal>
       {aoMudarRetirada && <ChaveRetirada retirada={retirada} aoMudar={aoMudarRetirada} />}
       <div className="relative mb-2">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-texto-suave" />
@@ -279,7 +322,7 @@ function CartaoProduto({
             title={`Adicionar 1 caixa (${p.unPorCaixa} un) · ${brl(preco * p.unPorCaixa)}`}
             aria-label={`Adicionar 1 caixa de ${p.nome} (${p.unPorCaixa} unidades)`}
           >
-            +cx {p.unPorCaixa}
+            {vendePorMaco(p) ? "+maço" : `+cx ${p.unPorCaixa}`}
           </button>
         )}
       </div>
@@ -337,7 +380,9 @@ export function ListaItens({
   return (
     <ul className="divide-y divide-borda">
       {itens.map((item, i) => {
-        const porCaixa = unPorCaixa(item.produtoId);
+        const produtoItem = produtoDe(item.produtoId);
+        // Cigarro: maço e unidade já são linhas separadas — sem "+cx".
+        const porCaixa = item.fator || (produtoItem && vendePorMaco(produtoItem)) ? 1 : unPorCaixa(item.produtoId);
         const temRetirada = !!produtoDe(item.produtoId)?.precoRetirada;
         return (
         <li key={`${item.produtoId}-${i}`} className="flex items-center gap-2 px-4 py-2.5">

@@ -30,6 +30,8 @@ export interface Produto {
   precoTabela2?: number;
   /** Preço alternativo (Tabela 3) — opcional, pra escolher ao montar o pedido. */
   precoTabela3?: number;
+  /** Preço do maço/pacote fechado (cigarro). Sem ele, vale precoUn × unPorCaixa. */
+  precoPacote?: number;
   /** Preço de custo por unidade, em reais. Usado pra margem. */
   precoCusto: number;
   estoqueUn: number;
@@ -92,6 +94,8 @@ export interface VendaItem {
   retirada?: boolean;
   /** Custo no momento da venda (pro lucro). */
   custoUn: number;
+  /** Item vendido em pacote (maço de cigarro): quantas unidades do estoque cada um leva. */
+  fator?: number;
 }
 
 export interface VendaPagamento {

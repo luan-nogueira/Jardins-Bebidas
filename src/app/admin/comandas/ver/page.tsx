@@ -13,7 +13,7 @@ import { BotaoImprimirVenda } from "@/components/CupomVenda";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
-import { adicionarItem, numeroVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
+import { adicionarItem, adicionarMaco, numeroVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
 import { ChipPedido, LinhaItemPedido, useNomePessoa } from "@/components/Pedidos";
 import { horaBR } from "@/lib/format";
@@ -185,6 +185,7 @@ function VerComanda() {
             retirada={!!c.retirada}
             aoMudarRetirada={mudarRetirada}
             aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd, !!c.retirada))}
+            aoEscolherMaco={(p) => salvarItens(adicionarMaco(c.itens, p))}
           />
           </div>
         </div>
@@ -232,6 +233,7 @@ function VerComanda() {
             retirada={!!c.retirada}
             aoMudarRetirada={mudarRetirada}
             aoEscolher={(p, qtd) => salvarItens(adicionarItem(c.itens, p, qtd, !!c.retirada))}
+            aoEscolherMaco={(p) => salvarItens(adicionarMaco(c.itens, p))}
           />
       </Modal>
 
