@@ -167,22 +167,43 @@ export function SeletorProdutos({
 }
 
 /** Consumo no local (preço normal) ou retirada (preço de levar, quando o produto tem). */
-export function ChaveRetirada({ retirada, aoMudar }: { retirada: boolean; aoMudar: (retirada: boolean) => void }) {
+export function ChaveRetirada({
+  retirada,
+  aoMudar,
+  historico = false,
+  aoHistorico,
+}: {
+  retirada: boolean;
+  aoMudar: (retirada: boolean) => void;
+  /** Aba "Histórico" ligada (aí nenhuma das outras fica marcada). */
+  historico?: boolean;
+  /** Com isso aparece a terceira aba, "Histórico". */
+  aoHistorico?: () => void;
+}) {
+  const classe = (ativa: boolean) =>
+    `h-9 rounded-lg text-sm font-bold transition ${ativa ? "bg-superficie text-acento shadow-sm" : "text-texto-suave"}`;
   return (
-    <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-superficie-2 p-1" role="group" aria-label="Tipo de venda">
+    <div
+      className={`mb-2 grid ${aoHistorico ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl bg-superficie-2 p-1`}
+      role="group"
+      aria-label="Tipo de venda"
+    >
       {[false, true].map((r) => (
         <button
           key={String(r)}
           type="button"
-          aria-pressed={retirada === r}
+          aria-pressed={!historico && retirada === r}
           onClick={() => aoMudar(r)}
-          className={`h-9 rounded-lg text-sm font-bold transition ${
-            retirada === r ? "bg-superficie text-acento shadow-sm" : "text-texto-suave"
-          }`}
+          className={classe(!historico && retirada === r)}
         >
           {r ? "Retirada" : "Consumo no local"}
         </button>
       ))}
+      {aoHistorico && (
+        <button type="button" aria-pressed={historico} onClick={aoHistorico} className={classe(historico)}>
+          Histórico
+        </button>
+      )}
     </div>
   );
 }

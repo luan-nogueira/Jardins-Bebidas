@@ -136,7 +136,7 @@ export function useImprimirVenda() {
     return () => clearTimeout(t);
   }, [fila]);
 
-  const imprimir = useCallback((v: Venda) => setFila([v]), []);
+  const imprimir = useCallback((v: Venda | Venda[]) => setFila(Array.isArray(v) ? v : [v]), []);
 
   const area =
     montado && fila.length > 0
