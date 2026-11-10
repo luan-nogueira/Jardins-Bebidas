@@ -11,11 +11,12 @@ import {
   Maximize,
   Minimize,
   Printer,
+  Trash2,
   Undo2,
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Cabecalho, Metrica, Vazio } from "@/components/ui";
+import { Cabecalho, Metrica, Modal, Vazio } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { ChipPedido, LinhaItemPedido, ModalCancelarPedido, useAgora, type AlvoCancelamento } from "@/components/Pedidos";
 import { useImpressaoCozinha, type Cupom } from "@/components/CupomCozinha";
@@ -540,7 +541,11 @@ function Painel() {
    --------------------------------------------------------------------------- */
 
 function Historico() {
-  const { pedidos } = useDados();
+  const { pedidos, removerPedido } = useDados();
+  const { permissoes } = useAuth();
+  /** Um pedido, ou "todos" os que estão no filtro. */
+  const [apagando, setApagando] = useState<Pedido | "todos" | null>(null);
+  const [ocupado, setOcupado] = useState(false);
   const [dia, setDia] = useState(hojeISO());
   const [garcom, setGarcom] = useState("");
   const [status, setStatus] = useState<PedidoStatus | "">("");
@@ -565,9 +570,31 @@ function Historico() {
     : 0;
   const itensCancelados = doDia.flatMap((p) => p.itens.filter((i) => i.cancelado)).length;
 
+  async function apagar() {
+    if (!apagando) return;
+    setOcupado(true);
+    try {
+      for (const p of apagando === "todos" ? lista : [apagando]) await removerPedido(p.id);
+      setApagando(null);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   return (
     <>
-      <Cabecalho titulo="Histórico de pedidos" subtitulo={dataBR(dia)} />
+      <Cabecalho
+        titulo="Histórico de pedidos"
+        subtitulo={dataBR(dia)}
+        acao={
+          permissoes.excluir && lista.length > 0 ? (
+            <button className="btn-perigo" onClick={() => setApagando("todos")}>
+              <Trash2 className="h-4 w-4" />
+              Apagar {lista.length === 1 ? "o pedido" : `os ${lista.length} pedidos`} da lista
+            </button>
+          ) : undefined
+        }
+      />
       <div className="mb-4 grid grid-cols-3 gap-3 px-4 md:px-6">
         <Metrica rotulo="Pedidos" valor={String(doDia.length)} />
         <Metrica rotulo="Tempo médio" valor={`${tempoMedio} min`} detalhe="até ficar pronto" destaque />
@@ -610,6 +637,16 @@ function Historico() {
                     {horaBR(p.criadoEm)}
                     {preparo !== null && ` · pronto em ${preparo} min`}
                   </span>
+                  {permissoes.excluir && (
+                    <button
+                      onClick={() => setApagando(p)}
+                      className="grid h-8 w-8 place-items-center rounded-lg text-texto-suave transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                      aria-label={`Apagar pedido ${p.sequencia} da comanda ${numeroVenda(p.comandaNumero)}`}
+                      title="Apagar pedido"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
                 <p className="mb-1 text-xs text-texto-suave">
                   {p.garcom ?? "—"} · {itensAtivos(p).reduce((s, i) => s + i.qtd, 0)} item(ns)
@@ -629,6 +666,42 @@ function Historico() {
           })}
         </ul>
       )}
+
+      <Modal
+        aberto={!!apagando}
+        aoFechar={() => !ocupado && setApagando(null)}
+        titulo={apagando === "todos" ? "Apagar pedidos" : "Apagar pedido"}
+        rodape={
+          <>
+            <button className="btn-secundario" onClick={() => setApagando(null)} disabled={ocupado}>
+              Voltar
+            </button>
+            <button className="btn-perigo" onClick={apagar} disabled={ocupado}>
+              <Trash2 className="h-4 w-4" />
+              {ocupado ? "Apagando…" : "Apagar de vez"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-texto-suave">
+          {apagando === "todos" ? (
+            <>
+              Os <strong className="text-texto">{lista.length} pedido(s)</strong> que aparecem na lista (
+              {dataBR(dia)}) somem da cozinha e do histórico.
+            </>
+          ) : apagando ? (
+            <>
+              O pedido {apagando.sequencia} da{" "}
+              <strong className="text-texto">
+                {apagando.mesa ? `Mesa ${apagando.mesa}` : (apagando.clienteNome ?? "comanda")}
+              </strong>{" "}
+              ({numeroVenda(apagando.comandaNumero)}) some da cozinha e do histórico.
+            </>
+          ) : null}{" "}
+          Não dá pra desfazer. A comanda e a conta da mesa não mudam — pra apagar a venda de teste, cancele a comanda em
+          Comandas.
+        </p>
+      </Modal>
     </>
   );
 }

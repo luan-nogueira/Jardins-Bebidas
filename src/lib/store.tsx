@@ -58,6 +58,7 @@ interface Dados {
   salvarUsuario: (u: Usuario) => Promise<void>;
   removerUsuario: (id: string) => Promise<void>;
   salvarPedido: (p: Pedido) => Promise<void>;
+  removerPedido: (id: string) => Promise<void>;
 
   proximoNumeroVenda: () => number;
   produtoPorId: (id: string) => Produto | undefined;
@@ -187,6 +188,7 @@ const ACOES = {
   salvarUsuario: salvarEm<Usuario>("usuarios"),
   removerUsuario: removerDe("usuarios"),
   salvarPedido: salvarEm<Pedido>("pedidos"),
+  removerPedido: removerDe("pedidos"),
 };
 
 export function DadosProvider({ children }: { children: React.ReactNode }) {
