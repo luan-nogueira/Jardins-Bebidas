@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Circle,
+  Clock,
   Pencil,
   Plus,
   ShieldCheck,
@@ -16,7 +17,8 @@ import { SomenteAdmin } from "@/components/Protegido";
 import { useDados, novoId } from "@/lib/store";
 import { criarLoginFuncionario } from "@/lib/firebase";
 import { mensagemDeErro } from "@/lib/auth";
-import { PERMISSOES_GARCOM, PERMISSOES_PADRAO_FUNCIONARIO } from "@/lib/types";
+import { PERMISSOES_GARCOM, PERMISSOES_PADRAO_FUNCIONARIO, acessoExpirado } from "@/lib/types";
+import { horaBR } from "@/lib/format";
 import type { PapelUsuario, Permissoes, Usuario } from "@/lib/types";
 
 const ROTULO_PERMISSAO: Record<keyof Permissoes, string> = {
@@ -41,7 +43,20 @@ type Formulario = {
   senha: string;
   papel: PapelUsuario;
   permissoes: Permissoes;
+  freelancer: boolean;
+  horas: number;
 };
+
+const OPCOES_HORAS = [4, 6, 8, 12];
+const HORA = 3_600_000;
+
+/** "23:40" ou "11/11 02:10" quando não é hoje. */
+function ateQuando(ms: number) {
+  const fim = new Date(ms);
+  const mesmoDia = fim.toDateString() === new Date().toDateString();
+  const dia = mesmoDia ? "" : fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " ";
+  return dia + horaBR(fim.toISOString());
+}
 
 function formVazio(): Formulario {
   return {
@@ -50,6 +65,8 @@ function formVazio(): Formulario {
     senha: "",
     papel: "funcionario",
     permissoes: { ...PERMISSOES_PADRAO_FUNCIONARIO },
+    freelancer: false,
+    horas: 4,
   };
 }
 
@@ -70,6 +87,12 @@ function EquipePageInterno() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [desativando, setDesativando] = useState<Usuario | null>(null);
+  // Atualiza o "faltam X min" e o vencimento dos freelancers na lista.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   function abrirNovo() {
     setEditando(null);
@@ -80,7 +103,15 @@ function EquipePageInterno() {
 
   function abrirEdicao(u: Usuario) {
     setEditando(u);
-    setForm({ nome: u.nome, email: u.email, senha: "", papel: u.papel, permissoes: { ...u.permissoes } });
+    setForm({
+      nome: u.nome,
+      email: u.email,
+      senha: "",
+      papel: u.papel,
+      permissoes: { ...u.permissoes },
+      freelancer: !!u.freelancer,
+      horas: u.horasAcesso ?? 4,
+    });
     setErro("");
     setAberto(true);
   }
@@ -109,8 +140,20 @@ function EquipePageInterno() {
     setErro("");
     setSalvando(true);
     try {
+      // Freelancer: o relógio começa a contar quando salva.
+      const tempo: Partial<Usuario> = form.freelancer
+        ? { freelancer: true, horasAcesso: form.horas, acessoAte: Date.now() + form.horas * HORA }
+        : { freelancer: false };
       if (editando) {
-        await salvarUsuario({ ...editando, nome, papel: form.papel, permissoes: form.permissoes });
+        // Só editar nome/permissões não reinicia o relógio de quem já é freelancer.
+        const mudouTempo = form.freelancer !== !!editando.freelancer || form.horas !== (editando.horasAcesso ?? 4);
+        await salvarUsuario({
+          ...editando,
+          nome,
+          papel: form.papel,
+          permissoes: form.permissoes,
+          ...(mudouTempo ? tempo : {}),
+        });
       } else {
         if (!email || form.senha.length < 6) {
           setErro("Preencha e-mail e uma senha com pelo menos 6 caracteres.");
@@ -127,6 +170,7 @@ function EquipePageInterno() {
           permissoes: form.permissoes,
           ativo: true,
           criadoEm: agora,
+          ...tempo,
         });
       }
       setAberto(false);
@@ -135,6 +179,14 @@ function EquipePageInterno() {
     } finally {
       setSalvando(false);
     }
+  }
+
+  async function liberar(u: Usuario) {
+    await salvarUsuario({ ...u, acessoAte: Date.now() + (u.horasAcesso ?? 4) * HORA });
+  }
+
+  async function encerrar(u: Usuario) {
+    await salvarUsuario({ ...u, acessoAte: Date.now() - 1000 });
   }
 
   async function confirmarDesativar() {
@@ -190,6 +242,18 @@ function EquipePageInterno() {
                     {u.papel === "garcom" && (
                       <span className="chip bg-acento/15 text-acento">Garçom — só o app de mesas</span>
                     )}
+                    {u.freelancer &&
+                      (acessoExpirado(u, agora) ? (
+                        <span className="chip bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">
+                          <Clock className="h-3 w-3" />
+                          Freelancer — acesso encerrado
+                        </span>
+                      ) : (
+                        <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          <Clock className="h-3 w-3" />
+                          Freelancer — liberado até {ateQuando(u.acessoAte ?? 0)}
+                        </span>
+                      ))}
                     {u.ativo === false && (
                       <span className="chip bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">
                         acesso desativado
@@ -212,6 +276,31 @@ function EquipePageInterno() {
                       </span>
                     )}
                   </div>
+                  {u.freelancer && u.ativo !== false && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {acessoExpirado(u, agora) ? (
+                        <button className="btn-primario px-3 py-1.5 text-xs" onClick={() => liberar(u)}>
+                          <Clock className="h-3.5 w-3.5" />
+                          Liberar por {u.horasAcesso ?? 4}h
+                        </button>
+                      ) : (
+                        <>
+                          <span className="text-xs text-texto-suave">
+                            faltam {Math.max(1, Math.ceil(((u.acessoAte ?? 0) - agora) / 60_000))} min
+                          </span>
+                          <button className="btn-secundario px-3 py-1.5 text-xs" onClick={() => liberar(u)}>
+                            Recomeçar {u.horasAcesso ?? 4}h
+                          </button>
+                          <button
+                            className="btn-fantasma px-3 py-1.5 text-xs text-red-600 dark:text-red-400"
+                            onClick={() => encerrar(u)}
+                          >
+                            Encerrar agora
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex shrink-0 gap-1">
@@ -345,6 +434,52 @@ function EquipePageInterno() {
                   Entra só no app do garçom (<strong>/garcom</strong>): abre mesas, lança pedidos pra
                   cozinha e fecha a conta. Não vê mais nada do sistema.
                 </p>
+              )}
+            </div>
+          )}
+
+          {form.papel !== "admin" && (
+            <div className="border-t border-borda pt-3">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, freelancer: !f.freelancer }))}
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-superficie-2"
+              >
+                {form.freelancer ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-acento" />
+                ) : (
+                  <Circle className="h-5 w-5 shrink-0 text-texto-suave" />
+                )}
+                <span>
+                  <span className="block text-sm font-bold">Freelancer (acesso por tempo)</span>
+                  <span className="block text-xs text-texto-suave">
+                    O login funciona só pelas horas escolhidas. Depois é bloqueado sozinho.
+                  </span>
+                </span>
+              </button>
+              {form.freelancer && (
+                <div className="mt-2 pl-10">
+                  <p className="mb-1.5 text-xs font-bold text-texto-suave">Acesso por</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {OPCOES_HORAS.map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, horas: h }))}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-bold ${
+                          form.horas === h ? "bg-acento text-acento-texto" : "border border-borda text-texto-suave"
+                        }`}
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-texto-suave">
+                    Conta a partir de quando você salvar: fica liberado até{" "}
+                    <strong className="text-texto">{ateQuando(agora + form.horas * HORA)}</strong>. Pra outro dia de
+                    trabalho, é só tocar em &quot;Liberar&quot; na lista da equipe.
+                  </p>
+                </div>
               )}
             </div>
           )}

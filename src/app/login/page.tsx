@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -16,7 +16,7 @@ import {
 import { Brinde } from "@/components/Brinde";
 import { Logo } from "@/components/Logo";
 import { TemaBotao } from "@/components/TemaBotao";
-import { mensagemDeErro, useAuth } from "@/lib/auth";
+import { AVISO_LOGIN, mensagemDeErro, useAuth } from "@/lib/auth";
 
 const DESTAQUES = [
   { Icone: ShoppingCart, titulo: "Vendas e comandas", texto: "Balcão, fiado e mesas sem papel." },
@@ -39,6 +39,22 @@ export default function LoginPage() {
   // Muda a cada erro pra remontar o formulário e repetir a animação de "tremer".
   const [tentativa, setTentativa] = useState(0);
 
+  // Login bloqueado pelo sistema (freelancer com o tempo vencido): mostra o porquê.
+  useEffect(() => {
+    const ler = () => {
+      try {
+        const msg = localStorage.getItem(AVISO_LOGIN);
+        if (!msg) return;
+        setAprovado(false);
+        setEnviando(false);
+        setErro(msg);
+      } catch {}
+    };
+    ler();
+    window.addEventListener(AVISO_LOGIN, ler);
+    return () => window.removeEventListener(AVISO_LOGIN, ler);
+  }, []);
+
   function falhou(mensagem: string) {
     setErro(mensagem);
     setTentativa((t) => t + 1);
@@ -48,6 +64,9 @@ export default function LoginPage() {
     e.preventDefault();
     setErro("");
     setAviso("");
+    try {
+      localStorage.removeItem(AVISO_LOGIN);
+    } catch {}
     setEnviando(true);
     try {
       await entrar(email, senha);

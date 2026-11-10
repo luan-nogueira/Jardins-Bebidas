@@ -17,7 +17,10 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { firebaseConfigurado, getFirebaseAuth, getDb } from "./firebase";
-import type { Permissoes, Usuario } from "./types";
+import { acessoExpirado, type Permissoes, type Usuario } from "./types";
+
+/** Recado pra tela de login quando o sistema desloga alguém sozinho. */
+export const AVISO_LOGIN = "jardins:aviso-login";
 
 /** Sem perfil cadastrado = conta antiga/dona do sistema: acesso total. */
 const PERMISSOES_TOTAL: Permissoes = {
@@ -132,7 +135,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Conta desativada nunca é admin e nunca tem permissão nenhuma, mesmo que
   // o papel salvo seja "admin" por engano — desativar sempre vence.
-  const desativado = !!perfil && perfil.ativo === false;
+  // Freelancer: re-renderiza na hora exata em que o tempo de acesso acaba.
+  const [, setTique] = useState(0);
+  useEffect(() => {
+    if (!perfil?.freelancer || !perfil.acessoAte) return;
+    const falta = perfil.acessoAte - Date.now();
+    if (falta <= 0 || falta > 2 ** 31 - 1) return;
+    const t = setTimeout(() => setTique((n) => n + 1), falta + 500);
+    return () => clearTimeout(t);
+  }, [perfil]);
+
+  const expirou = !!perfil && acessoExpirado(perfil);
+  const desativado = !!perfil && (perfil.ativo === false || expirou);
   const ehAdmin = !desativado && (!perfil || perfil.papel === "admin");
   const ehGarcom = !desativado && perfil?.papel === "garcom";
   const permissoes = desativado
@@ -143,8 +157,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Conta desativada: desloga na hora, não deixa nem carregar a tela.
   useEffect(() => {
-    if (desativado) void signOut(getFirebaseAuth());
-  }, [desativado]);
+    if (!desativado) return;
+    if (expirou) {
+      try {
+        localStorage.setItem(AVISO_LOGIN, "Seu tempo de acesso (freelancer) terminou. Fale com o gerente pra liberar de novo.");
+      } catch {}
+      window.dispatchEvent(new Event(AVISO_LOGIN));
+    }
+    void signOut(getFirebaseAuth());
+  }, [desativado, expirou]);
 
   const valor = useMemo<Autenticacao>(
     () => ({
@@ -160,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       recuperarSenha,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [usuario, perfil, carregando, entrar, sair, recuperarSenha],
+    [usuario, perfil, carregando, entrar, sair, recuperarSenha, desativado],
   );
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;

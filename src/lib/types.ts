@@ -267,6 +267,17 @@ export interface Usuario {
   /** false = acesso revogado (login continua existindo, mas não vê nada). */
   ativo: boolean;
   criadoEm: string;
+  /** Freelancer: acesso liberado por algumas horas de cada vez. */
+  freelancer?: boolean;
+  /** Freelancer: até quando o acesso vale (epoch em ms). Depois disso fica bloqueado. */
+  acessoAte?: number;
+  /** Freelancer: quantas horas cada liberação dá. */
+  horasAcesso?: number;
+}
+
+/** Freelancer com o tempo de acesso vencido. */
+export function acessoExpirado(u: Pick<Usuario, "freelancer" | "acessoAte">, agora = Date.now()): boolean {
+  return !!u.freelancer && (u.acessoAte ?? 0) <= agora;
 }
 
 /** Uma despesa/conta a pagar — fornecedor, aluguel, combustível, etc. */

@@ -22,8 +22,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
 
+    // Freelancer: acessoAte (ms) vencido = bloqueado, igual a ativo: false.
     function contaAtiva() {
-      return !temPerfil() || perfil().ativo != false;
+      return !temPerfil() || (
+        perfil().ativo != false &&
+        (perfil().get('freelancer', false) != true || request.time.toMillis() < perfil().get('acessoAte', 0))
+      );
     }
 
     function ehAdmin() {
