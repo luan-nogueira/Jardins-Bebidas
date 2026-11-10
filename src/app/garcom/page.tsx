@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Cabecalho, Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
+import { BotaoPagarSeparado } from "@/components/PagarSeparado";
 import { ListaItens, ModalPagamento, SeletorProdutos, novaVenda, useAcoesVenda } from "@/components/Vendas";
 import {
   ChipPedido,
@@ -610,6 +611,13 @@ function MesaAberta({ id }: { id: string }) {
                 <Receipt className="h-4 w-4" />
                 Ver conta
               </button>
+              <BotaoPagarSeparado
+                venda={c}
+                aoPagar={(v) => {
+                  setAviso(`Recebido ${brl(totalVenda(v))} separado`);
+                  setTimeout(() => setAviso(""), 3000);
+                }}
+              />
               <button className="btn-primario w-full" disabled={c.itens.length === 0} onClick={() => setFechando(true)}>
                 Fechar conta
               </button>

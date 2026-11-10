@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/components/Vendas";
+import { BotaoPagarSeparado } from "@/components/PagarSeparado";
 import { DetalheVenda } from "@/components/DetalheVenda";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -119,6 +120,7 @@ function VerComanda() {
               </span>
               <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
             </div>
+            <BotaoPagarSeparado venda={c} />
             <button
               className="btn-primario w-full"
               disabled={c.itens.length === 0}
