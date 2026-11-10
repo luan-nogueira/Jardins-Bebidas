@@ -6,6 +6,7 @@ import { BellRing, X } from "lucide-react";
 import { useDados } from "@/lib/store";
 import { useQuemSou } from "@/components/Pedidos";
 import { itensAtivos } from "@/lib/pedidos";
+import { inscreverPush } from "@/lib/push";
 import type { Pedido } from "@/lib/types";
 
 /*
@@ -94,7 +95,8 @@ export function AvisoPedidoPronto() {
     if (audio.current?.state === "running") plim(audio.current);
     navigator.vibrate?.([300, 120, 300, 120, 300]);
 
-    // App em segundo plano: notificação do celular.
+    // App em segundo plano: notificação do celular. Se o push também chegar,
+    // a mesma tag (id do pedido) faz o celular mostrar uma só.
     if (permissao === "granted" && document.visibilityState !== "visible" && "serviceWorker" in navigator) {
       void navigator.serviceWorker.ready.then((reg) => {
         for (const l of lista) {
@@ -117,6 +119,13 @@ export function AvisoPedidoPronto() {
     return () => clearTimeout(t);
   }, [avisos]);
 
+  // Com a permissão dada, (re)inscreve este celular no push — com o nome
+  // atual do garçom, pra cozinha achar ele mesmo com o app fechado.
+  useEffect(() => {
+    if (permissao !== "granted") return;
+    inscreverPush(quem).catch((e) => console.error("Não deu pra ativar o push:", e));
+  }, [permissao, quem]);
+
   async function pedirPermissao() {
     try {
       setPermissao(await Notification.requestPermission());
@@ -134,7 +143,9 @@ export function AvisoPedidoPronto() {
           className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-2 rounded-xl border border-sky-400/40 bg-sky-500/10 p-3 text-left text-xs font-semibold"
         >
           <BellRing className="h-4 w-4 shrink-0 text-sky-500" />
-          <span className="flex-1">Ativar aviso no celular quando o pedido ficar pronto</span>
+          <span className="flex-1">
+            Ativar aviso de pedido pronto — chega até com o celular bloqueado
+          </span>
           <span className="rounded-lg bg-sky-500 px-2 py-1 text-white">Ativar</span>
         </button>
       )}

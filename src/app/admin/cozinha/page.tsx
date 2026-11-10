@@ -21,6 +21,7 @@ import { Protegido } from "@/components/Protegido";
 import { ChipPedido, LinhaItemPedido, ModalCancelarPedido, useAgora, type AlvoCancelamento } from "@/components/Pedidos";
 import { useImpressaoCozinha, type Cupom } from "@/components/CupomCozinha";
 import { useDados } from "@/lib/store";
+import { avisarPedidoPronto } from "@/lib/push";
 import { useAuth } from "@/lib/auth";
 import { dataBR, horaBR, hojeISO } from "@/lib/format";
 import { diaLocal, numeroVenda } from "@/lib/vendas";
@@ -145,7 +146,7 @@ function nomeDoPedido(p: Pedido) {
 }
 
 function Painel() {
-  const { pedidos, salvarPedido, carregando } = useDados();
+  const { pedidos, vendas, salvarPedido, carregando } = useDados();
   const { permissoes } = useAuth();
   const agora = useAgora(15_000);
   const [colunaCelular, setColunaCelular] = useState<PedidoStatus>("NOVO");
@@ -324,7 +325,14 @@ function Painel() {
     );
   }, [pedidos, agora]);
 
-  const mover = (p: Pedido, status: PedidoStatus) => salvarPedido(comStatus(p, status));
+  async function mover(p: Pedido, status: PedidoStatus) {
+    await salvarPedido(comStatus(p, status));
+    // Pronto: push pro celular do garçom (chega mesmo com o app fechado).
+    if (status === "PRONTO") {
+      const garcomDaMesa = vendas.find((v) => v.id === p.vendaId)?.garcom;
+      avisarPedidoPronto(p, garcomDaMesa).catch((e) => console.error("Push do pedido pronto falhou:", e));
+    }
+  }
   const voltar: Partial<Record<PedidoStatus, PedidoStatus>> = { PREPARANDO: "NOVO", PRONTO: "PREPARANDO" };
   const contagem = (s: PedidoStatus) => ativos.filter((p) => p.status === s).length;
 

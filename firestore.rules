@@ -91,6 +91,13 @@ service cloud.firestore {
       allow read, write: if vende() || temPermissao("cozinha");
     }
 
+    // Celulares inscritos no aviso de "pedido pronto" (push). Cada login grava
+    // só a própria inscrição; a cozinha e quem vende leem pra mandar o aviso.
+    match /inscricoesPush/{doc} {
+      allow read, delete: if vende() || temPermissao("cozinha");
+      allow create, update: if logado() && contaAtiva() && request.resource.data.uid == request.auth.uid;
+    }
+
     match /usuarios/{uid} {
       allow read: if logado() && (request.auth.uid == uid || ehAdmin());
       allow write: if ehAdmin();

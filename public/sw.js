@@ -29,3 +29,26 @@ self.addEventListener("notificationclick", (e) => {
     }),
   );
 });
+
+// Push vindo do servidor (/api/push): "Mesa 5 — pedido pronto!". Chega
+// mesmo com o app fechado e o celular bloqueado.
+self.addEventListener("push", (e) => {
+  let aviso = {};
+  try {
+    aviso = e.data ? e.data.json() : {};
+  } catch {
+    aviso = { corpo: e.data ? e.data.text() : "" };
+  }
+  e.waitUntil(
+    self.registration.showNotification(aviso.titulo || "Pedido pronto!", {
+      body: aviso.corpo || "",
+      tag: aviso.tag || undefined,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [300, 120, 300, 120, 300],
+      icon: "/icone-192.png",
+      badge: "/icone-192.png",
+      data: { url: aviso.url || "/garcom" },
+    }),
+  );
+});
