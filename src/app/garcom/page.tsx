@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Cabecalho, Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
-import { BotaoPagarSeparado } from "@/components/PagarSeparado";
+import { BotaoAbaterValor, BotaoPagarSeparado, ResumoConta } from "@/components/PagarSeparado";
 import { ListaItens, ModalPagamento, SeletorProdutos, novaVenda, useAcoesVenda } from "@/components/Vendas";
 import {
   ChipPedido,
@@ -31,7 +31,7 @@ import {
 import { useDados, novoId } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, horaBR } from "@/lib/format";
-import { adicionarItem, numeroVenda, totalVenda, unidadesVenda } from "@/lib/vendas";
+import { adicionarItem, numeroVenda, pagoVenda, saldoVenda, totalVenda, unidadesVenda } from "@/lib/vendas";
 import { comStatus, minutosDesde, nomeComanda, pedidoEmAndamento } from "@/lib/pedidos";
 import type { Pedido, Produto, Venda } from "@/lib/types";
 
@@ -393,6 +393,8 @@ function MesaAberta({ id }: { id: string }) {
 
   const c: Venda = venda;
   const total = totalVenda(c);
+  const pago = pagoVenda(c);
+  const falta = saldoVenda(c);
   const qtdCarrinho = carrinho.reduce((s, l) => s + l.qtd, 0);
   const emAndamento = daMesa.filter((p) => p.status === "NOVO" || p.status === "PREPARANDO").length;
 
@@ -599,9 +601,12 @@ function MesaAberta({ id }: { id: string }) {
           <aside>
             <div className="card sticky top-4 space-y-3 p-4">
               <div className="flex items-baseline justify-between">
-                <span className="text-sm text-texto-suave">{unidadesVenda(c)} itens na conta</span>
-                <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
+                <span className="text-sm text-texto-suave">
+                  {pago > 0 ? "Falta pagar" : `${unidadesVenda(c)} itens na conta`}
+                </span>
+                <span className="text-2xl font-black text-acento tabular-nums">{brl(pago > 0 ? Math.max(0, falta) : total)}</span>
               </div>
+              <ResumoConta venda={c} />
               {emAndamento > 0 && (
                 <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-300">
                   {emAndamento} pedido(s) ainda na cozinha.
@@ -615,6 +620,13 @@ function MesaAberta({ id }: { id: string }) {
                 venda={c}
                 aoPagar={(v) => {
                   setAviso(`Recebido ${brl(totalVenda(v))} separado`);
+                  setTimeout(() => setAviso(""), 3000);
+                }}
+              />
+              <BotaoAbaterValor
+                venda={c}
+                aoPagar={(v) => {
+                  setAviso(`Abatido ${brl(v)} da conta`);
                   setTimeout(() => setAviso(""), 3000);
                 }}
               />
@@ -695,8 +707,11 @@ function MesaAberta({ id }: { id: string }) {
       <Modal aberto={vendoConta} aoFechar={() => setVendoConta(false)} titulo={`Conta · ${nomeComanda(c)}`}>
         <ListaItens itens={c.itens} somenteLeitura />
         <div className="mt-3 flex items-baseline justify-between border-t border-borda pt-3">
-          <span className="text-sm text-texto-suave">Total</span>
-          <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
+          <span className="text-sm text-texto-suave">{pago > 0 ? "Falta pagar" : "Total"}</span>
+          <span className="text-2xl font-black text-acento tabular-nums">{brl(pago > 0 ? Math.max(0, falta) : total)}</span>
+        </div>
+        <div className="mt-3">
+          <ResumoConta venda={c} />
         </div>
       </Modal>
 
@@ -705,7 +720,7 @@ function MesaAberta({ id }: { id: string }) {
       <ModalPagamento
         aberto={fechando}
         titulo={`Fechar conta · ${nomeComanda(c)}`}
-        aPagar={totalVenda(vendaPorId(c.id) ?? c)}
+        aPagar={Math.max(0, saldoVenda(vendaPorId(c.id) ?? c))}
         permitePrazo={!!c.clienteId}
         textoConfirmar="Fechar conta"
         aoFechar={() => setFechando(false)}
@@ -735,6 +750,11 @@ function MesaAberta({ id }: { id: string }) {
         <p className="mb-3 text-sm text-texto-suave">
           A conta de <strong className="text-texto">{nomeComanda(c)}</strong> ({brl(total)}) é cancelada e os
           pedidos que ainda estão na cozinha também. Fica no histórico com o motivo.
+          {pago > 0 && (
+            <strong className="mt-2 block text-red-600 dark:text-red-400">
+              Atenção: já foram recebidos {brl(pago)} nessa mesa — cancelando, esse valor sai do caixa.
+            </strong>
+          )}
         </p>
         <input
           className="campo"

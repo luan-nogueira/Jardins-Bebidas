@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Minus, Plus, Users } from "lucide-react";
+import { HandCoins, Minus, Plus, Users } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { ModalPagamento, novaVenda, useAcoesVenda } from "@/components/Vendas";
 import { useDados } from "@/lib/store";
-import { brl } from "@/lib/format";
+import { brl, horaBR, paraNumero } from "@/lib/format";
+import { ROTULO_FORMA, saldoVenda, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
 import type { Venda, VendaItem } from "@/lib/types";
 
@@ -14,6 +15,128 @@ import type { Venda, VendaItem } from "@/lib/types";
  * Esses itens viram uma venda própria (finalizada, baixa o estoque e entra
  * no caixa) e saem da conta da mesa, que continua aberta pros outros.
  */
+
+/** Total, o que já foi pago por conta e quanto falta — some se ninguém pagou nada ainda. */
+export function ResumoConta({ venda }: { venda: Venda }) {
+  if (venda.pagamentos.length === 0) return null;
+  const falta = saldoVenda(venda);
+  return (
+    <div className="space-y-1 rounded-xl border border-borda p-3 text-sm">
+      <div className="flex justify-between">
+        <span className="text-texto-suave">Total da conta</span>
+        <span className="font-semibold tabular-nums">{brl(totalVenda(venda))}</span>
+      </div>
+      {venda.pagamentos.map((p) => (
+        <div key={p.id} className="flex justify-between text-emerald-700 dark:text-emerald-400">
+          <span>
+            Pago {horaBR(p.data)} · {ROTULO_FORMA[p.forma]}
+          </span>
+          <span className="tabular-nums">− {brl(p.valor)}</span>
+        </div>
+      ))}
+      <div className="flex justify-between border-t border-borda pt-1 font-black">
+        <span>Falta pagar</span>
+        <span className="text-acento tabular-nums">{brl(Math.max(0, falta))}</span>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * Abater valor: alguém da mesa paga uma parte (R$ 50, por exemplo) sem
+ * escolher itens. O pagamento fica na conta (já entra no caixa) e o
+ * "Fechar conta" cobra só o que falta.
+ */
+export function BotaoAbaterValor({ venda, aoPagar }: { venda: Venda; aoPagar?: (valor: number) => void }) {
+  const { vendaPorId } = useDados();
+  const { receber } = useAcoesVenda();
+  const [digitando, setDigitando] = useState(false);
+  const [pagando, setPagando] = useState(false);
+  const [texto, setTexto] = useState("");
+  const falta = saldoVenda(venda);
+  const valor = Math.round(paraNumero(texto) * 100) / 100;
+  const valido = valor > 0 && valor < falta - 0.005;
+
+  return (
+    <>
+      <button
+        className="btn-secundario w-full"
+        disabled={falta <= 0.005}
+        onClick={() => {
+          setTexto("");
+          setDigitando(true);
+        }}
+      >
+        <HandCoins className="h-4 w-4" />
+        Abater valor
+      </button>
+
+      <Modal
+        aberto={digitando}
+        aoFechar={() => setDigitando(false)}
+        titulo={`Abater valor · ${nomeComanda(venda)}`}
+        rodape={
+          <>
+            <button className="btn-secundario" onClick={() => setDigitando(false)}>
+              Voltar
+            </button>
+            <button
+              className="btn-primario"
+              disabled={!valido}
+              onClick={() => {
+                setDigitando(false);
+                setPagando(true);
+              }}
+            >
+              Receber {brl(valor)}
+            </button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-texto-suave">
+          Quanto a pessoa vai pagar agora? O valor sai do total e a mesa continua aberta.
+        </p>
+        <div className="mb-3 flex items-baseline justify-between">
+          <span className="text-sm text-texto-suave">Falta na conta</span>
+          <span className="text-xl font-black tabular-nums">{brl(falta)}</span>
+        </div>
+        <input
+          className="campo text-2xl font-black tabular-nums"
+          inputMode="decimal"
+          placeholder="0,00"
+          autoFocus
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          aria-label="Valor a abater"
+        />
+        {valor > 0 && !valido && (
+          <p className="mt-2 text-xs font-semibold text-amber-600">
+            É o valor todo (ou mais) — pra isso use &quot;Fechar conta&quot;.
+          </p>
+        )}
+        {valido && (
+          <p className="mt-2 text-sm">
+            Depois disso ainda faltam <strong className="tabular-nums">{brl(falta - valor)}</strong>.
+          </p>
+        )}
+      </Modal>
+
+      <ModalPagamento
+        aberto={pagando}
+        titulo={`Abater ${brl(valor)} · ${nomeComanda(venda)}`}
+        aPagar={valor}
+        permitePrazo={false}
+        textoConfirmar="Receber"
+        aoFechar={() => setPagando(false)}
+        aoConfirmar={async (r) => {
+          await receber(vendaPorId(venda.id) ?? venda, r);
+          setPagando(false);
+          aoPagar?.(r.pagamentos.reduce((s, p) => s + p.valor, 0));
+        }}
+      />
+    </>
+  );
+}
 
 export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?: (v: Venda) => void }) {
   const { vendaPorId, salvarVenda, proximoNumeroVenda } = useDados();
@@ -31,6 +154,8 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
   const unidades = escolhidos.reduce((s, i) => s + i.qtd, 0);
   const totalUnidades = itens.reduce((s, i) => s + i.qtd, 0);
   const tudo = unidades > 0 && unidades === totalUnidades;
+  // Se já abateram valor, os itens separados não podem passar do que falta.
+  const passou = valor > saldoVenda(venda) + 0.005;
 
   function mudar(i: number, qtd: number) {
     setSel((s) => {
@@ -63,7 +188,7 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
             </button>
             <button
               className="btn-primario"
-              disabled={unidades === 0 || tudo}
+              disabled={unidades === 0 || tudo || passou}
               onClick={() => {
                 setEscolhendo(false);
                 setPagando(true);
@@ -123,6 +248,11 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
         {tudo && (
           <p className="mt-2 text-xs font-semibold text-amber-600">
             Marcou a conta toda — pra isso use &quot;Fechar conta&quot;.
+          </p>
+        )}
+        {passou && !tudo && (
+          <p className="mt-2 text-xs font-semibold text-amber-600">
+            Passa do que falta na conta ({brl(saldoVenda(venda))}) — parte já foi abatida.
           </p>
         )}
       </Modal>

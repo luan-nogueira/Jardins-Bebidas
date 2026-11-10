@@ -7,12 +7,12 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/components/Vendas";
-import { BotaoPagarSeparado } from "@/components/PagarSeparado";
+import { BotaoAbaterValor, BotaoPagarSeparado, ResumoConta } from "@/components/PagarSeparado";
 import { DetalheVenda } from "@/components/DetalheVenda";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
-import { adicionarItem, numeroVenda, subtotalItens, totalVenda } from "@/lib/vendas";
+import { adicionarItem, numeroVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
 import type { Venda, VendaItem } from "@/lib/types";
 
@@ -120,7 +120,9 @@ function VerComanda() {
               </span>
               <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
             </div>
+            <ResumoConta venda={c} />
             <BotaoPagarSeparado venda={c} />
+            <BotaoAbaterValor venda={c} />
             <button
               className="btn-primario w-full"
               disabled={c.itens.length === 0}
@@ -157,7 +159,7 @@ function VerComanda() {
       <ModalPagamento
         aberto={fechando}
         titulo={`Finalizar comanda de ${nomeComanda(c)}`}
-        aPagar={totalVenda(vendaPorId(c.id) ?? c)}
+        aPagar={Math.max(0, saldoVenda(vendaPorId(c.id) ?? c))}
         // Mesa sem cliente cadastrado não tem de quem cobrar depois.
         permitePrazo={!!c.clienteId}
         textoConfirmar="Finalizar"
