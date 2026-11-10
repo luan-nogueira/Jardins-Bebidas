@@ -1,5 +1,6 @@
 import {
   Beef,
+  Building2,
   Fuel,
   HandCoins,
   Home,
@@ -49,6 +50,8 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; sugestoes?: st
   { nome: "Retirada de sócio", Icone: HandCoins },
   { nome: "Patrimônio", Icone: Landmark, sugestoes: ["Carro", "Caixas vazias", "Cobertura", "TV", "Toldo"] },
   { nome: "Investimento", Icone: PiggyBank, sugestoes: ["Consórcio"] },
+  /** Dinheiro da gaveta levado pro banco (sangria pra depósito). */
+  { nome: "Depósito no banco", Icone: Building2 },
   { nome: "Outros", Icone: Package },
 ];
 

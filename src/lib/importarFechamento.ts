@@ -1,5 +1,5 @@
 import { CAIXA_DA_LOJA } from "./gastos";
-import { normalizar } from "./format";
+import { normalizar, somarDias } from "./format";
 import type { ContaPagar, FormaPagamento, Venda } from "./types";
 
 /*
@@ -27,8 +27,10 @@ export interface SaidaDinheiro {
   descricao: string;
   valor: number;
   categoria: string;
-  /** A data estava em branco ou errada — usamos a da linha anterior. */
+  /** A data estava em branco ou fora do período — foi corrigida. */
   diaAjustado?: boolean;
+  /** O que estava digitado, quando havia data. */
+  diaOriginal?: string;
 }
 
 export interface Fechamento {
@@ -83,13 +85,15 @@ function diaDe(v: CelulaBruta): string | null {
 }
 
 const centavos = (n: number) => Math.round(n * 100) / 100;
+const dataCurta = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
+const brlSimples = (n: number) => `R$ ${n.toFixed(2).replace(".", ",")}`;
 
 export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await arquivo.arrayBuffer());
 
-  const abaFech = wb.worksheets.find((w) => normalizar(w.name).includes("fechamento")) ?? wb.worksheets[0];
+  const abaFech = wb.worksheets.find((w) => /fechamento|acerto/.test(normalizar(w.name))) ?? wb.worksheets[0];
   const abaSaida = wb.worksheets.find((w) => normalizar(w.name).includes("saida")) ?? wb.worksheets[1];
   if (!abaFech) throw new Error("Não achei a aba de fechamento de caixa.");
 
@@ -97,32 +101,37 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
 
   // ---- Fechamento diário: acha a linha do cabeçalho (DATA, VENDA SISTEMA, …)
   const dias: DiaFechamento[] = [];
-  let colunas: Partial<Record<"sistema" | FormaPagamento, number>> | null = null;
+  // Uma forma pode ter mais de uma coluna ("PIX" e "PIX CNPJ" somam no Pix).
+  let colunas: Partial<Record<"sistema" | FormaPagamento, number[]>> | null = null;
   abaFech.eachRow((row) => {
     const celulas = row.values as CelulaBruta[];
     if (!colunas) {
       if (normalizar(texto(celulas[1])) !== "data") return;
-      colunas = {};
+      const achadas: Partial<Record<"sistema" | FormaPagamento, number[]>> = {};
+      const marcar = (k: "sistema" | FormaPagamento, i: number) => (achadas[k] ??= []).push(i);
       celulas.forEach((c, i) => {
         const t = normalizar(texto(c));
-        if (t.includes("sistema")) colunas!.sistema = i;
-        else if (t.startsWith("credito")) colunas!.CREDITO = i;
-        else if (t.startsWith("debito")) colunas!.DEBITO = i;
-        else if (t.startsWith("pix")) colunas!.PIX = i;
-        else if (t.startsWith("dinheiro")) colunas!.DINHEIRO = i;
+        if (t.includes("sistema")) marcar("sistema", i);
+        else if (t.startsWith("credito")) marcar("CREDITO", i);
+        else if (t.startsWith("debito")) marcar("DEBITO", i);
+        else if (t.startsWith("pix")) marcar("PIX", i);
+        else if (t.startsWith("dinheiro")) marcar("DINHEIRO", i);
       });
+      colunas = achadas;
       return;
     }
     const dia = diaDe(celulas[1]);
     if (!dia) return;
-    const col = colunas;
+    const col: Partial<Record<"sistema" | FormaPagamento, number[]>> = colunas;
+    const soma = (k: "sistema" | FormaPagamento) =>
+      centavos((col[k] ?? []).reduce((s, i) => s + (numero(celulas[i]) ?? 0), 0));
     const formas = {
-      CREDITO: centavos(numero(celulas[col.CREDITO ?? -1]) ?? 0),
-      DEBITO: centavos(numero(celulas[col.DEBITO ?? -1]) ?? 0),
-      PIX: centavos(numero(celulas[col.PIX ?? -1]) ?? 0),
-      DINHEIRO: centavos(numero(celulas[col.DINHEIRO ?? -1]) ?? 0),
+      CREDITO: soma("CREDITO"),
+      DEBITO: soma("DEBITO"),
+      PIX: soma("PIX"),
+      DINHEIRO: soma("DINHEIRO"),
     } satisfies Record<FormaPagamento, number>;
-    const sistema = centavos(numero(celulas[col.sistema ?? -1]) ?? 0);
+    const sistema = soma("sistema");
     const apurado = Object.values(formas).reduce((s, v) => s + v, 0);
     const falta = centavos(sistema - apurado);
     const zeradas = (Object.keys(formas) as FormaPagamento[]).filter((f) => formas[f] === 0);
@@ -140,10 +149,30 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
   if (abaSaida) {
     let dentro = false;
     let ultimoDia = dias[0]?.dia ?? "";
+    // Saída fora do período (± 7 dias) = data digitada errada (ex.: 19/06 no lugar de 19/09).
+    const inicio = somarDias(dias[0]?.dia ?? "2000-01-01", -7);
+    const fim = somarDias(dias[dias.length - 1]?.dia ?? "2100-01-01", 7);
+    const noPeriodo = (d: string) => d >= inicio && d <= fim;
+    /** Mesmo dia do mês, no mês da linha anterior ou no seguinte — o primeiro que fizer sentido. */
+    const consertar = (errado: string) => {
+      const diaMes = errado.slice(8, 10);
+      const [a, m] = ultimoDia.split("-").map(Number);
+      for (const mais of [0, 1]) {
+        const dt = new Date(a, m - 1 + mais, 1);
+        const cand = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${diaMes}`;
+        const valida = new Date(`${cand}T12:00:00`).getDate() === Number(diaMes);
+        if (valida && noPeriodo(cand) && cand >= ultimoDia) return cand;
+      }
+      return ultimoDia;
+    };
     abaSaida.eachRow((row, n) => {
       const c = row.values as CelulaBruta[];
       const desc = texto(c[2]);
       const t = normalizar(desc);
+      if (t.startsWith("sobra") && numero(c[3])) {
+        avisos.push(`“${desc}” (${brlSimples(numero(c[3])!)}) não é importada — é dinheiro de um período anterior.`);
+        return;
+      }
       if (t === "pagamentos") {
         dentro = true;
         return;
@@ -155,15 +184,18 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
       }
       const v = numero(c[3]);
       if (!desc || v === null || v <= 0) return;
-      const dia = diaDe(c[1]);
-      if (dia) ultimoDia = dia;
+      const lido = diaDe(c[1]);
+      // As linhas vêm em ordem: data que volta mais de uma semana também é erro de digitação.
+      const certo = lido && noPeriodo(lido) && lido >= somarDias(ultimoDia, -7) ? lido : null;
+      const dia = certo ?? (lido ? consertar(lido) : ultimoDia);
+      ultimoDia = dia;
       saidas.push({
         linha: n,
-        dia: dia ?? ultimoDia,
+        dia,
         descricao: desc,
         valor: centavos(v),
         categoria: categoriaDaSaida(desc),
-        ...(!dia && { diaAjustado: true }),
+        ...(!certo && { diaAjustado: true, ...(lido && { diaOriginal: lido }) }),
       });
     });
   } else {
@@ -173,9 +205,9 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
   const ajustadas = saidas.filter((s) => s.diaAjustado);
   if (ajustadas.length) {
     avisos.push(
-      `${ajustadas.length} saída(s) sem data ou com data errada ficaram no dia da linha anterior: ${ajustadas
-        .map((s) => `“${s.descricao}”`)
-        .join(", ")}.`,
+      `${ajustadas.length} saída(s) sem data ou com data fora do período foram corrigidas: ${ajustadas
+        .map((s) => `“${s.descricao}” ${s.diaOriginal ? dataCurta(s.diaOriginal) : "sem data"} → ${dataCurta(s.dia)}`)
+        .join("; ")}.`,
     );
   }
 
@@ -187,20 +219,25 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
    --------------------------------------------------------------------------- */
 
 const REGRAS: [RegExp, string][] = [
+  // Sangria pra depositar = dinheiro da gaveta indo pro banco, não pro sócio.
+  [/sangria.*deposit|deposito/, "Depósito no banco"],
   [/sangria|retirada/, "Retirada de sócio"],
+  [/investimento|cofre/, "Investimento"],
+  [/material de limpeza|produto de limpeza/, "Limpeza"],
+  [/carne|torresmo/, "Carnes"],
   [/gelo|gelito/, "Gelo"],
   [/carvao|bujao|\bgas\b/, "Carvão e gás"],
   [/descartav|palito/, "Descartáveis"],
   [/imposto|\bmei\b|taxa/, "Impostos e taxas"],
-  [/nota |boleto|itaipava|unibeer|ambev/, "Fornecedores"],
-  [/parcela do carro/, "Patrimônio"],
+  [/\bnotas?\b|boleto|itaipava|unibeer|uniber|ambev|bebidas/, "Fornecedores"],
+  [/parcela do carro|leitor/, "Patrimônio"],
   [/combustiv|oleo|olo motor|galao|amolac|manuten|mouse/, "Manutenção"],
   [/aluguel/, "Aluguel"],
   [
-    /vale|pagamento|diaria|extra|supervis|seguranc|limpeza|copeira|cozinha|auxiliar|atendente|uber|comanda|carroceito|feriado|kelly|fabiano|monique|raquel|suel+en|luiza|geovana|geraldo|\bmax\b|marcos|leticia|sasha|igor|lidi|alice|miguel|cristina|alenilce/,
+    /vale|pagamento|diaria|extra|supervis|seguranc|segiranc|limpeza|copeira|cozinha|auxiliar|atendente|uber|comanda|carroceito|feriado|kelly|fabiano|monique|raquel|suel+en|luiza|geovana|geraldo|\bmax\b|marcos|leticia|sasha|igor|lidi|alice|miguel|cristina|alenilce|wallace|ligiane/,
     "Funcionários",
   ],
-  [/padaria|mercado|farinha|mantimento|hortifrut|quentinha|salgado|doces|refrigerante|\bsal\b|pacocao|compra/, "Mantimentos"],
+  [/padaria|\bpao\b|mercado|farinha|mantimento|hortifrut|quentinha|salgado|doces|refrigerante|\bsal\b|pacocao|compra/, "Mantimentos"],
 ];
 
 export function categoriaDaSaida(descricao: string): string {
