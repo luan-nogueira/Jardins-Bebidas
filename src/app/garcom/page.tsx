@@ -357,7 +357,7 @@ function MesaAberta({ id }: { id: string }) {
   const router = useRouter();
   const { vendaPorId, pedidos, salvarPedido, salvarVenda, carregando } = useDados();
   const { finalizar, cancelar } = useAcoesVenda();
-  const { permissoes } = useAuth();
+  const { permissoes, ehGarcom } = useAuth();
   const quem = useQuemSou();
   const agora = useAgora();
   const venda = vendaPorId(id);
@@ -575,7 +575,7 @@ function MesaAberta({ id }: { id: string }) {
                         Pedido cancelado — {p.motivoCancelamento}
                       </p>
                     )}
-                    {podeMexer && (
+                    {podeMexer && (p.status === "PRONTO" || !ehGarcom) && (
                       <div className="mt-3 flex flex-wrap gap-2 border-t border-borda pt-3">
                         {p.status === "PRONTO" && (
                           <button className="btn-primario flex-1" onClick={() => salvarPedido(comStatus(p, "ENTREGUE"))}>
@@ -583,13 +583,16 @@ function MesaAberta({ id }: { id: string }) {
                             Levei pra mesa
                           </button>
                         )}
-                        <button
-                          className="btn-fantasma text-xs text-red-600 dark:text-red-400"
-                          onClick={() => setCancelandoPedido({ pedido: p })}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Cancelar pedido
-                        </button>
+                        {/* Garçom só cancela item por item; pedido inteiro é com o caixa. */}
+                        {!ehGarcom && (
+                          <button
+                            className="btn-fantasma text-xs text-red-600 dark:text-red-400"
+                            onClick={() => setCancelandoPedido({ pedido: p })}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Cancelar pedido
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -633,7 +636,7 @@ function MesaAberta({ id }: { id: string }) {
               <button className="btn-primario w-full" disabled={c.itens.length === 0} onClick={() => setFechando(true)}>
                 Fechar conta
               </button>
-              {permissoes.excluir && (
+              {permissoes.excluir && !ehGarcom && (
                 <button
                   type="button"
                   className="flex w-full items-center justify-center gap-1.5 border-t border-borda pt-3 text-xs font-semibold text-red-600 transition hover:text-red-700 dark:text-red-400"

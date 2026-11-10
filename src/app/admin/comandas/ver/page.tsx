@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/components/Vendas";
@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
 import { adicionarItem, numeroVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
+import { ChipPedido, LinhaItemPedido } from "@/components/Pedidos";
+import { horaBR } from "@/lib/format";
 import type { Venda, VendaItem } from "@/lib/types";
 
 export default function VerComandaPage() {
@@ -29,7 +31,7 @@ export default function VerComandaPage() {
 function VerComanda() {
   const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
-  const { vendaPorId, salvarVenda, carregando, pendenciaDoCliente } = useDados();
+  const { vendaPorId, salvarVenda, carregando, pendenciaDoCliente, pedidos } = useDados();
   const { finalizar, cancelar } = useAcoesVenda();
   const { permissoes } = useAuth();
   const comanda = vendaPorId(id);
@@ -38,6 +40,12 @@ function VerComanda() {
   const [fechando, setFechando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  // Abre só pra ver; editar/cobrar é um toque a mais.
+  const [editando, setEditando] = useState(false);
+  const daComanda = useMemo(
+    () => pedidos.filter((p) => p.vendaId === id).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
+    [pedidos, id],
+  );
 
   if (carregando) return <p className="p-6 text-sm text-texto-suave">Carregando…</p>;
   if (!comanda) {
@@ -82,9 +90,66 @@ function VerComanda() {
             Comanda {numeroVenda(c.numero)} · aberta {dataHoraBR(c.abertaEm)}
           </p>
         </div>
+        <button className="btn-secundario ml-auto shrink-0" onClick={() => setEditando((e) => !e)}>
+          {editando ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+          {editando ? "Só visualizar" : "Editar / cobrar"}
+        </button>
       </div>
 
-      <div className="grid gap-4 px-4 md:px-6 xl:grid-cols-[1fr_360px]">
+      {!editando && (
+        <div className="grid gap-4 px-4 pb-6 md:px-6 xl:grid-cols-[1fr_360px]">
+          <div className="min-w-0 space-y-3">
+            <div className="card overflow-hidden">
+              <div className="border-b border-borda px-4 py-3">
+                <h2 className="font-bold">Itens da comanda</h2>
+              </div>
+              <ListaItens itens={c.itens} somenteLeitura />
+            </div>
+            {daComanda.length > 0 && (
+              <div className="card overflow-hidden">
+                <div className="border-b border-borda px-4 py-3">
+                  <h2 className="font-bold">Pedidos pra cozinha</h2>
+                </div>
+                <ul className="divide-y divide-borda">
+                  {daComanda.map((p) => (
+                    <li key={p.id} className={`px-4 py-3 ${p.status === "CANCELADO" ? "opacity-60" : ""}`}>
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="font-bold">Pedido {p.sequencia}</span>
+                        <ChipPedido status={p.status} />
+                        <span className="ml-auto text-xs text-texto-suave">
+                          {horaBR(p.criadoEm)}
+                          {p.garcom && ` · ${p.garcom}`}
+                        </span>
+                      </div>
+                      <ul className="divide-y divide-borda">
+                        {p.itens.map((it, i) => (
+                          <LinhaItemPedido key={i} item={it} />
+                        ))}
+                      </ul>
+                      {p.obs && <p className="mt-1 text-xs text-texto-suave">Obs.: {p.obs}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <aside>
+            <div className="card sticky top-4 space-y-3 p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-texto-suave">{c.itens.reduce((s, i) => s + i.qtd, 0)} itens</span>
+                <span className="text-2xl font-black text-acento tabular-nums">{brl(total)}</span>
+              </div>
+              <ResumoConta venda={c} />
+              <button className="btn-primario w-full" onClick={() => setEditando(true)}>
+                <Pencil className="h-4 w-4" />
+                Editar / cobrar comanda
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <div className={`grid gap-4 px-4 md:px-6 xl:grid-cols-[1fr_360px] ${editando ? "" : "hidden"}`}>
         <div className="min-w-0 space-y-3">
           {deveAntes > 0.005 && (
             <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">

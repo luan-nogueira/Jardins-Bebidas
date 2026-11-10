@@ -29,7 +29,7 @@ export function ResumoConta({ venda }: { venda: Venda }) {
       {venda.pagamentos.map((p) => (
         <div key={p.id} className="flex justify-between text-emerald-700 dark:text-emerald-400">
           <span>
-            Pago {horaBR(p.data)} · {ROTULO_FORMA[p.forma]}
+            {p.obs ? `${p.obs} pagou` : "Pago"} · {horaBR(p.data)} · {ROTULO_FORMA[p.forma]}
           </span>
           <span className="tabular-nums">− {brl(p.valor)}</span>
         </div>
@@ -53,6 +53,7 @@ export function BotaoAbaterValor({ venda, aoPagar }: { venda: Venda; aoPagar?: (
   const [digitando, setDigitando] = useState(false);
   const [pagando, setPagando] = useState(false);
   const [texto, setTexto] = useState("");
+  const [nome, setNome] = useState("");
   const falta = saldoVenda(venda);
   const valor = Math.round(paraNumero(texto) * 100) / 100;
   const valido = valor > 0 && valor < falta - 0.005;
@@ -64,6 +65,7 @@ export function BotaoAbaterValor({ venda, aoPagar }: { venda: Venda; aoPagar?: (
         disabled={falta <= 0.005}
         onClick={() => {
           setTexto("");
+          setNome("");
           setDigitando(true);
         }}
       >
@@ -109,6 +111,17 @@ export function BotaoAbaterValor({ venda, aoPagar }: { venda: Venda; aoPagar?: (
           onChange={(e) => setTexto(e.target.value)}
           aria-label="Valor a abater"
         />
+        <label className="rotulo mt-3" htmlFor="abater-nome">
+          Quem está pagando? <span className="font-normal normal-case">(opcional)</span>
+        </label>
+        <input
+          id="abater-nome"
+          className="campo"
+          placeholder="Ex.: João"
+          autoCapitalize="words"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
         {valor > 0 && !valido && (
           <p className="mt-2 text-xs font-semibold text-amber-600">
             É o valor todo (ou mais) — pra isso use &quot;Fechar conta&quot;.
@@ -123,13 +136,17 @@ export function BotaoAbaterValor({ venda, aoPagar }: { venda: Venda; aoPagar?: (
 
       <ModalPagamento
         aberto={pagando}
-        titulo={`Abater ${brl(valor)} · ${nomeComanda(venda)}`}
+        titulo={`${nome.trim() || "Abater"} · ${brl(valor)} · ${nomeComanda(venda)}`}
         aPagar={valor}
         permitePrazo={false}
         textoConfirmar="Receber"
         aoFechar={() => setPagando(false)}
         aoConfirmar={async (r) => {
-          await receber(vendaPorId(venda.id) ?? venda, r);
+          const quem = nome.trim();
+          await receber(vendaPorId(venda.id) ?? venda, {
+            ...r,
+            pagamentos: r.pagamentos.map((pg) => (quem ? { ...pg, obs: quem } : pg)),
+          });
           setPagando(false);
           aoPagar?.(r.pagamentos.reduce((s, p) => s + p.valor, 0));
         }}
@@ -145,6 +162,7 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
   const [pagando, setPagando] = useState(false);
   /** Quantas unidades de cada linha da conta (pelo índice) essa pessoa vai pagar. */
   const [sel, setSel] = useState<number[]>([]);
+  const [nome, setNome] = useState("");
 
   const itens = venda.itens;
   const escolhidos: VendaItem[] = itens
@@ -167,6 +185,7 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
 
   function abrir() {
     setSel([]);
+    setNome("");
     setEscolhendo(true);
   }
 
@@ -202,7 +221,18 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
         <p className="mb-3 text-sm text-texto-suave">
           Marque só o que essa pessoa consumiu. O resto continua na conta da mesa.
         </p>
-        <ul className="divide-y divide-borda">
+        <label className="rotulo" htmlFor="separado-nome">
+          Quem está pagando? <span className="font-normal normal-case">(opcional)</span>
+        </label>
+        <input
+          id="separado-nome"
+          className="campo"
+          placeholder="Ex.: João"
+          autoCapitalize="words"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
+        <ul className="mt-2 divide-y divide-borda">
           {itens.map((it, i) => {
             const q = sel[i] ?? 0;
             return (
@@ -291,13 +321,19 @@ export function BotaoPagarSeparado({ venda, aoPagar }: { venda: Venda; aoPagar?:
               mesa: atual.mesa,
               garcom: atual.garcom,
               // Aparece como "Mesa 5 · Pago separado".
-              clienteNome: atual.mesa ? "Pago separado" : `${nomeComanda(atual)} (separado)`,
+              clienteNome: [nome.trim() || (atual.mesa ? "" : nomeComanda(atual)), "pago separado"]
+                .filter(Boolean)
+                .join(" · "),
               retirada: atual.retirada,
               obs: `Pago separado da comanda ${atual.numero}`,
             },
             proximoNumeroVenda(),
           );
-          const final = await finalizar(separada, r);
+          const quem = nome.trim();
+          const final = await finalizar(separada, {
+            ...r,
+            pagamentos: r.pagamentos.map((pg) => (quem ? { ...pg, obs: quem } : pg)),
+          });
           await salvarVenda({
             ...atual,
             itens: restantes.filter((it) => it.qtd > 0),
