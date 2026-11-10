@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { brl, dataHoraBR } from "@/lib/format";
 import { adicionarItem, numeroVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
-import { ChipPedido, LinhaItemPedido } from "@/components/Pedidos";
+import { ChipPedido, LinhaItemPedido, useNomePessoa } from "@/components/Pedidos";
 import { horaBR } from "@/lib/format";
 import type { Venda, VendaItem } from "@/lib/types";
 
@@ -43,6 +43,7 @@ function VerComanda() {
   const [ocupado, setOcupado] = useState(false);
   // Abre só pra ver; editar/cobrar é um toque a mais.
   const [editando, setEditando] = useState(false);
+  const nomePessoa = useNomePessoa();
   const daComanda = useMemo(
     () => pedidos.filter((p) => p.vendaId === id).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
     [pedidos, id],
@@ -119,7 +120,7 @@ function VerComanda() {
                         <ChipPedido status={p.status} />
                         <span className="ml-auto text-xs text-texto-suave">
                           {horaBR(p.criadoEm)}
-                          {p.garcom && ` · ${p.garcom}`}
+                          {p.garcom && ` · ${nomePessoa(p.garcom)}`}
                         </span>
                       </div>
                       <ul className="divide-y divide-borda">
@@ -146,6 +147,16 @@ function VerComanda() {
                 <Pencil className="h-4 w-4" />
                 Editar / cobrar comanda
               </button>
+              {permissoes.excluir && (
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-1.5 border-t border-borda pt-3 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400"
+                  onClick={() => setCancelando(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Cancelar comanda
+                </button>
+              )}
             </div>
           </aside>
         </div>

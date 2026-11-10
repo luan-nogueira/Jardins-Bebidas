@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Cabecalho, Metrica, Modal, Vazio } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
-import { ChipPedido, LinhaItemPedido, ModalCancelarPedido, useAgora, type AlvoCancelamento } from "@/components/Pedidos";
+import { ChipPedido, LinhaItemPedido, ModalCancelarPedido, useAgora, useNomePessoa, type AlvoCancelamento } from "@/components/Pedidos";
 import { useImpressaoCozinha, type Cupom } from "@/components/CupomCozinha";
 import { useDados } from "@/lib/store";
 import { avisarPedidoPronto } from "@/lib/push";
@@ -147,6 +147,7 @@ function nomeDoPedido(p: Pedido) {
 
 function Painel() {
   const { pedidos, vendas, salvarPedido, carregando } = useDados();
+  const nomePessoa = useNomePessoa();
   const { permissoes } = useAuth();
   const agora = useAgora(15_000);
   const [colunaCelular, setColunaCelular] = useState<PedidoStatus>("NOVO");
@@ -449,7 +450,7 @@ function Painel() {
                             <p className="text-3xl leading-none font-black">{nomeDoPedido(p)}</p>
                             <p className="mt-1 text-xs text-texto-suave">
                               Comanda {numeroVenda(p.comandaNumero)} · pedido {p.sequencia}
-                              {p.garcom ? ` · ${p.garcom}` : ""}
+                              {p.garcom ? ` · ${nomePessoa(p.garcom)}` : ""}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
@@ -562,6 +563,7 @@ function Painel() {
 
 function Historico() {
   const { pedidos, removerPedido } = useDados();
+  const nomePessoa = useNomePessoa();
   const { permissoes } = useAuth();
   /** Um pedido, ou "todos" os que estão no filtro. */
   const [apagando, setApagando] = useState<Pedido | "todos" | null>(null);
@@ -627,7 +629,9 @@ function Historico() {
         <select className="campo" value={garcom} onChange={(e) => setGarcom(e.target.value)}>
           <option value="">Todos os garçons</option>
           {garcons.map((g) => (
-            <option key={g}>{g}</option>
+            <option key={g} value={g}>
+              {nomePessoa(g)}
+            </option>
           ))}
         </select>
         <select className="campo" value={status} onChange={(e) => setStatus(e.target.value as PedidoStatus | "")}>
@@ -669,7 +673,7 @@ function Historico() {
                   )}
                 </div>
                 <p className="mb-1 text-xs text-texto-suave">
-                  {p.garcom ?? "—"} · {itensAtivos(p).reduce((s, i) => s + i.qtd, 0)} item(ns)
+                  {nomePessoa(p.garcom) || "—"} · {itensAtivos(p).reduce((s, i) => s + i.qtd, 0)} item(ns)
                 </p>
                 <ul className="divide-y divide-borda">
                   {p.itens.map((it, i) => (
@@ -678,7 +682,7 @@ function Historico() {
                 </ul>
                 {p.status === "CANCELADO" && p.motivoCancelamento && (
                   <p className="mt-1 text-xs font-semibold text-red-600 dark:text-red-400">
-                    Pedido cancelado por {p.canceladoPor ?? "—"} — {p.motivoCancelamento}
+                    Pedido cancelado por {nomePessoa(p.canceladoPor) || "—"} — {p.motivoCancelamento}
                   </p>
                 )}
               </li>

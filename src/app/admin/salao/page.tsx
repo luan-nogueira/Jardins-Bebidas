@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BellRing, Check, ChefHat, Copy, Smartphone, UtensilsCrossed } from "lucide-react";
 import { Cabecalho, Metrica, Vazio } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
-import { useAgora } from "@/components/Pedidos";
+import { useAgora, useNomePessoa } from "@/components/Pedidos";
 import { useDados } from "@/lib/store";
 import { brl, hojeISO } from "@/lib/format";
 import { diaLocal, numeroVenda, totalVenda, unidadesVenda } from "@/lib/vendas";
@@ -27,6 +27,7 @@ export default function SalaoPage() {
 
 function Salao() {
   const { vendas, pedidos, carregando } = useDados();
+  const nomePessoa = useNomePessoa();
   const agora = useAgora();
   const hoje = hojeISO();
 
@@ -64,7 +65,8 @@ function Salao() {
 
   const porGarcom = useMemo(() => {
     const mapa = new Map<string, { nome: string; abertas: number; aberto: number; fechado: number; pedidos: number }>();
-    const linha = (nome: string) => {
+    const linha = (bruto: string) => {
+      const nome = nomePessoa(bruto);
       if (!mapa.has(nome)) mapa.set(nome, { nome, abertas: 0, aberto: 0, fechado: 0, pedidos: 0 });
       return mapa.get(nome)!;
     };
@@ -76,7 +78,7 @@ function Salao() {
     for (const v of fechadasHoje) if (v.garcom) linha(v.garcom).fechado += totalVenda(v);
     for (const p of pedidosHoje) if (p.garcom) linha(p.garcom).pedidos++;
     return [...mapa.values()].sort((a, b) => b.aberto + b.fechado - (a.aberto + a.fechado));
-  }, [abertas, fechadasHoje, pedidosHoje]);
+  }, [abertas, fechadasHoje, pedidosHoje, nomePessoa]);
 
   function statusCozinha(v: Venda) {
     const dela = pedidos.filter((p) => p.vendaId === v.id);
@@ -141,7 +143,7 @@ function Salao() {
                           {v.clienteNome ?? (v.mesa ? `Mesa ${v.mesa}` : "Sem nome")}
                         </span>
                         <span className="block text-xs text-texto-suave">
-                          {numeroVenda(v.numero)} · {v.garcom ?? "—"} · {unidadesVenda(v)} itens · há{" "}
+                          {numeroVenda(v.numero)} · {nomePessoa(v.garcom) || "—"} · {unidadesVenda(v)} itens · há{" "}
                           {minutosDesde(v.abertaEm, agora)} min
                         </span>
                         <span className="mt-1 flex flex-wrap gap-1">

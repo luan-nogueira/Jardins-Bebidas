@@ -16,7 +16,9 @@ import { Cabecalho, Modal, Vazio } from "@/components/ui";
 import { SomenteAdmin } from "@/components/Protegido";
 import { useDados, novoId } from "@/lib/store";
 import { criarLoginFuncionario } from "@/lib/firebase";
-import { mensagemDeErro } from "@/lib/auth";
+import { mensagemDeErro, useAuth } from "@/lib/auth";
+import { updateProfile } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { PERMISSOES_GARCOM, PERMISSOES_PADRAO_FUNCIONARIO, acessoExpirado } from "@/lib/types";
 import { horaBR } from "@/lib/format";
 import type { PapelUsuario, Permissoes, Usuario } from "@/lib/types";
@@ -213,6 +215,8 @@ function EquipePageInterno() {
       />
 
       <div className="px-4 md:px-6">
+        <SeuNome />
+
         <div className="mb-4 rounded-xl border border-borda bg-superficie-2 px-4 py-3 text-sm text-texto-suave">
           Você (dono da conta) sempre tem acesso total a tudo. As permissões
           abaixo valem só pra logins de funcionário que você criar aqui.
@@ -534,5 +538,58 @@ function EquipePageInterno() {
         </p>
       </Modal>
     </>
+  );
+}
+
+/**
+ * A conta dona do sistema não tem cadastro na Equipe — sem isso, o cupom e a
+ * cozinha mostrariam o e-mail. O nome fica no próprio login (Firebase Auth).
+ */
+function SeuNome() {
+  const { usuario, perfil, exigeLogin } = useAuth();
+  const [nome, setNome] = useState(usuario?.displayName ?? "");
+  const [salvando, setSalvando] = useState(false);
+  if (!exigeLogin || !usuario || perfil) return null;
+
+  async function salvar() {
+    const atual = getFirebaseAuth().currentUser;
+    if (!atual || !nome.trim()) return;
+    setSalvando(true);
+    try {
+      await updateProfile(atual, { displayName: nome.trim() });
+      // Recarrega pra todas as telas pegarem o nome novo.
+      window.location.reload();
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="card mb-4 p-4">
+      <label className="rotulo" htmlFor="seu-nome">
+        Seu nome (aparece no cupom e na cozinha como garçom)
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="seu-nome"
+          className="campo"
+          placeholder="Ex.: Luan"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
+        <button
+          className="btn-primario shrink-0"
+          disabled={salvando || !nome.trim() || nome.trim() === usuario.displayName}
+          onClick={salvar}
+        >
+          {salvando ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
+      {!usuario.displayName && (
+        <p className="mt-1 text-xs text-texto-suave">
+          Hoje aparece &quot;{usuario.email?.split("@")[0]}&quot;. Coloque seu nome pra sair certinho.
+        </p>
+      )}
+    </div>
   );
 }

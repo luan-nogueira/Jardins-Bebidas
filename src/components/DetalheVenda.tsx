@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui";
-import { ListaItens, ModalPagamento, useAcoesVenda } from "@/components/Vendas";
+import { ListaItens, ModalPagamento, SeletorProdutos, useAcoesVenda } from "@/components/Vendas";
+import { Pencil, Trash2 } from "lucide-react";
 import { BotaoImprimirVenda } from "@/components/CupomVenda";
 import { useAuth } from "@/lib/auth";
 import { useDados } from "@/lib/store";
@@ -15,7 +16,8 @@ import {
   subtotalItens,
   totalVenda,
 } from "@/lib/vendas";
-import type { Venda } from "@/lib/types";
+import { adicionarItem } from "@/lib/vendas";
+import type { Venda, VendaItem } from "@/lib/types";
 
 export function ChipStatusVenda({ venda }: { venda: Venda }) {
   const saldo = saldoVenda(venda);
@@ -43,12 +45,17 @@ export function DetalheVenda({
   aoAbrirComanda?: (v: Venda) => void;
 }) {
   const { permissoes } = useAuth();
-  const { receber, cancelar } = useAcoesVenda();
+  const { receber, cancelar, editarItens } = useAcoesVenda();
   const { removerVenda } = useDados();
   const cancelada = venda.status === "CANCELADA";
   const [recebendo, setRecebendo] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  /** Itens sendo editados (null = fora da edição). */
+  const [rascunho, setRascunho] = useState<VendaItem[] | null>(null);
+  const [aviso, setAviso] = useState("");
+  // Mexer numa venda já fechada é como cancelar: precisa da permissão de excluir.
+  const podeEditar = !cancelada && (venda.status === "ABERTA" || permissoes.excluir);
 
   const total = totalVenda(venda);
   const saldo = saldoVenda(venda);
@@ -62,17 +69,21 @@ export function DetalheVenda({
         titulo={`${venda.tipo === "COMANDA" ? "Comanda" : "Venda"} ${numeroVenda(venda.numero)}`}
         rodape={
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {permissoes.excluir ? (
-              <button
-                className="text-sm font-semibold text-red-600 hover:underline dark:text-red-400"
-                onClick={() => setCancelando(true)}
-              >
-                {cancelada ? "Excluir de vez" : "Cancelar venda"}
-              </button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {permissoes.excluir && (
+                <button className="btn-secundario text-red-600 dark:text-red-400" onClick={() => setCancelando(true)}>
+                  <Trash2 className="h-4 w-4" />
+                  {cancelada ? "Excluir de vez" : venda.tipo === "COMANDA" ? "Cancelar comanda" : "Cancelar venda"}
+                </button>
+              )}
+              {podeEditar && (
+                <button className="btn-secundario" onClick={() => setRascunho(venda.itens.map((i) => ({ ...i })))}>
+                  <Pencil className="h-4 w-4" />
+                  Editar itens
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
               {!cancelada && <BotaoImprimirVenda venda={venda} />}
               {venda.status === "ABERTA" && aoAbrirComanda && (
                 <button className="btn-primario" onClick={() => aoAbrirComanda(venda)}>
@@ -89,6 +100,11 @@ export function DetalheVenda({
         }
       >
         <div className="space-y-4">
+          {aviso && (
+            <p className="rounded-xl bg-amber-100 px-3 py-2 text-sm font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-300">
+              {aviso}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <ChipStatusVenda venda={venda} />
             <span className="text-sm font-semibold">{venda.clienteNome ?? "Consumidor final"}</span>
@@ -145,6 +161,25 @@ export function DetalheVenda({
           </div>
         </div>
       </Modal>
+
+      <EditarItens
+        venda={venda}
+        itens={rascunho}
+        aoMudar={setRascunho}
+        aoFechar={() => setRascunho(null)}
+        aoSalvar={async (itens) => {
+          const { venda: nova, devolver } = await editarItens(venda, itens);
+          setRascunho(null);
+          const falta = saldoVenda(nova);
+          setAviso(
+            devolver > 0.005
+              ? `Itens alterados. Devolva ${brl(devolver)} ao cliente.`
+              : nova.status === "FINALIZADA" && falta > 0.005
+                ? `Itens alterados. Falta receber ${brl(falta)} — toque em Receber.`
+                : "Itens alterados.",
+          );
+        }}
+      />
 
       <ModalPagamento
         aberto={recebendo}
@@ -222,5 +257,86 @@ function Linha({
       <span>{rotulo}</span>
       <span className="tabular-nums">{valor}</span>
     </div>
+  );
+}
+
+/** Trocar quantidades, tirar e pôr produtos numa venda (o estoque acompanha ao salvar). */
+function EditarItens({
+  venda,
+  itens,
+  aoMudar,
+  aoFechar,
+  aoSalvar,
+}: {
+  venda: Venda;
+  itens: VendaItem[] | null;
+  aoMudar: (itens: VendaItem[]) => void;
+  aoFechar: () => void;
+  aoSalvar: (itens: VendaItem[]) => Promise<void>;
+}) {
+  const [salvando, setSalvando] = useState(false);
+  const novoTotal = itens ? Math.max(0, subtotalItens(itens) - Math.min(venda.desconto, subtotalItens(itens))) : 0;
+  const pago = pagoVenda(venda);
+  const diferenca = novoTotal - pago;
+  return (
+    <Modal
+      aberto={!!itens}
+      aoFechar={() => !salvando && aoFechar()}
+      titulo={`Editar itens · ${numeroVenda(venda.numero)}`}
+      largura="max-w-2xl"
+      rodape={
+        <>
+          <button className="btn-secundario" onClick={aoFechar} disabled={salvando}>
+            Voltar
+          </button>
+          <button
+            className="btn-primario"
+            disabled={salvando || !itens || itens.length === 0}
+            onClick={async () => {
+              if (!itens) return;
+              setSalvando(true);
+              try {
+                await aoSalvar(itens.filter((i) => i.qtd > 0));
+              } finally {
+                setSalvando(false);
+              }
+            }}
+          >
+            {salvando ? "Salvando…" : "Salvar alteração"}
+          </button>
+        </>
+      }
+    >
+      {itens && (
+        <div className="space-y-4">
+          <div className="card overflow-hidden">
+            <ListaItens itens={itens} aoMudar={aoMudar} />
+          </div>
+          <div className="space-y-1 rounded-xl border border-borda p-3 text-sm">
+            <Linha rotulo="Total antes" valor={brl(totalVenda(venda))} suave />
+            <Linha rotulo="Total novo" valor={brl(novoTotal)} forte />
+            {venda.status === "FINALIZADA" && diferenca > 0.005 && (
+              <Linha rotulo="Vai faltar receber" valor={brl(diferenca)} destaque />
+            )}
+            {diferenca < -0.005 && <Linha rotulo="Devolver ao cliente" valor={brl(-diferenca)} destaque />}
+            {venda.status === "FINALIZADA" && (
+              <p className="pt-1 text-xs text-texto-suave">O estoque é corrigido sozinho ao salvar.</p>
+            )}
+          </div>
+          {itens.length === 0 && (
+            <p className="text-xs font-semibold text-amber-600">
+              Sem itens não dá pra salvar — pra desfazer a venda toda, use Cancelar.
+            </p>
+          )}
+          <div>
+            <h3 className="mb-2 text-sm font-bold">Adicionar produtos</h3>
+            <SeletorProdutos
+              retirada={!!venda.retirada}
+              aoEscolher={(p, qtd) => aoMudar(adicionarItem(itens, p, qtd, !!venda.retirada))}
+            />
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

@@ -859,7 +859,41 @@ export function useAcoesVenda() {
     await d.salvarVenda({ ...venda, status: "CANCELADA", canceladaEm: agora, atualizadoEm: agora });
   }
 
-  return { finalizar, receber, cancelar };
+  /**
+   * Troca os itens de uma venda. Já finalizada: devolve o estoque antigo e
+   * baixa o novo. Se o novo total ficou menor que o já pago, tira a
+   * diferença dos últimos pagamentos e devolve quanto entregar ao cliente.
+   */
+  async function editarItens(venda: Venda, itens: VendaItem[]): Promise<{ venda: Venda; devolver: number }> {
+    const agora = new Date().toISOString();
+    const subtotal = itens.reduce((s, i) => s + i.qtd * i.precoUn, 0);
+    const desconto = Math.min(venda.desconto, subtotal);
+    let excesso = Math.round((venda.pagamentos.reduce((s, p) => s + p.valor, 0) - (subtotal - desconto)) * 100) / 100;
+    const devolver = Math.max(0, excesso);
+    const pagamentos = [...venda.pagamentos];
+    for (let i = pagamentos.length - 1; i >= 0 && excesso > 0.004; i--) {
+      const tira = Math.min(excesso, pagamentos[i].valor);
+      pagamentos[i] = { ...pagamentos[i], valor: Math.round((pagamentos[i].valor - tira) * 100) / 100 };
+      excesso -= tira;
+    }
+    const nova: Venda = {
+      ...venda,
+      itens,
+      desconto,
+      pagamentos: pagamentos.filter((p) => p.valor > 0.004),
+      atualizadoEm: agora,
+    };
+    if (venda.status === "FINALIZADA") {
+      await estornarEstoqueVenda(venda, d);
+      await d.salvarVenda(nova);
+      await baixarEstoqueVenda(nova, d);
+    } else {
+      await d.salvarVenda(nova);
+    }
+    return { venda: nova, devolver };
+  }
+
+  return { finalizar, receber, cancelar, editarItens };
 }
 
 export function novaVenda(

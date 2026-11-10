@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { imprimirCupom } from "@/lib/imprimirCupom";
 import { numeroVenda } from "@/lib/vendas";
 import type { Pedido, PedidoItem } from "@/lib/types";
+import { useNomePessoa } from "@/components/Pedidos";
 
 /**
  * Cupom da cozinha pra impressora térmica (bobina de 80mm): mesa grande,
@@ -25,6 +26,7 @@ function dataHora(iso: string) {
 }
 
 function CupomUnico({ cupom }: { cupom: Cupom }) {
+  const nomePessoa = useNomePessoa();
   const { pedido: p, tipo, itens } = cupom;
   const cancelamento = tipo === "CANCELAMENTO";
   const total = itens.reduce((s, i) => s + i.qtd, 0);
@@ -63,7 +65,7 @@ function CupomUnico({ cupom }: { cupom: Cupom }) {
       <p style={{ fontSize: "10pt", marginTop: "1mm" }}>
         Comanda {numeroVenda(p.comandaNumero)} · Pedido {p.sequencia}
       </p>
-      {p.garcom && <p style={{ fontSize: "10pt" }}>Garçom: {p.garcom}</p>}
+      {p.garcom && <p style={{ fontSize: "10pt" }}>Garçom: {nomePessoa(p.garcom)}</p>}
       <p style={{ fontSize: "10pt" }}>
         {cancelamento ? "Cancelado" : "Feito"} em: {dataHora(cancelamento ? (itens[0]?.canceladoEm ?? p.atualizadoEm) : p.criadoEm)}
       </p>

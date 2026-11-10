@@ -25,6 +25,7 @@ import {
   LinhaItemPedido,
   ModalCancelarPedido,
   useAgora,
+  useNomePessoa,
   useQuemSou,
   type AlvoCancelamento,
 } from "@/components/Pedidos";
@@ -359,6 +360,7 @@ function MesaAberta({ id }: { id: string }) {
   const { finalizar, cancelar } = useAcoesVenda();
   const { permissoes, ehGarcom } = useAuth();
   const quem = useQuemSou();
+  const nomePessoa = useNomePessoa();
   const agora = useAgora();
   const venda = vendaPorId(id);
 
@@ -492,7 +494,7 @@ function MesaAberta({ id }: { id: string }) {
           <h1 className="truncate text-xl font-black md:text-2xl">{nomeComanda(c)}</h1>
           <p className="text-xs text-texto-suave">
             {numeroVenda(c.numero)} · aberta {horaBR(c.abertaEm)}
-            {c.garcom ? ` · ${c.garcom}` : ""}
+            {c.garcom ? ` · ${nomePessoa(c.garcom)}` : ""}
           </p>
         </div>
         <button className="shrink-0 text-right" onClick={() => setVendoConta(true)}>

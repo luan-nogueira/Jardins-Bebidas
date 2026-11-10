@@ -8,6 +8,7 @@ import { EMPRESA } from "@/lib/empresa";
 import { ROTULO_FORMA, numeroVenda, pagoVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
 import { nomeComanda } from "@/lib/pedidos";
 import type { Venda } from "@/lib/types";
+import { useNomePessoa } from "@/components/Pedidos";
 
 /**
  * Cupom da venda pra impressora térmica (bobina de 80mm). NÃO é documento
@@ -48,6 +49,7 @@ function Linha({ esq, dir, forte = false, grande = false }: { esq: string; dir: 
 }
 
 function CupomUnico({ venda: v }: { venda: Venda }) {
+  const nomePessoa = useNomePessoa();
   const aberta = v.status === "ABERTA";
   const subtotal = subtotalItens(v.itens);
   const total = totalVenda(v);
@@ -83,7 +85,7 @@ function CupomUnico({ venda: v }: { venda: Venda }) {
       </p>
       <p style={{ fontSize: "10pt" }}>{dataHora(v.finalizadaEm ?? new Date().toISOString())}</p>
       {(v.mesa || v.clienteNome) && <p style={{ fontSize: "10pt", fontWeight: 700 }}>{nomeComanda(v)}</p>}
-      {v.garcom && <p style={{ fontSize: "10pt" }}>Garçom: {v.garcom}</p>}
+      {v.garcom && <p style={{ fontSize: "10pt" }}>Garçom: {nomePessoa(v.garcom)}</p>}
       {sep}
       {v.itens.map((it, i) => (
         <div key={i} style={{ marginBottom: "1mm" }}>

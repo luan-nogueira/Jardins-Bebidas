@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Ban, MessageSquareWarning } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { useDados } from "@/lib/store";
@@ -28,9 +28,31 @@ export function useAgora(intervaloMs = 30_000) {
 }
 
 /** Nome de quem está usando o sistema — vai no pedido e no cancelamento. */
+/** Nome de quem está usando — nunca o e-mail (sai no cupom e na cozinha). */
 export function useQuemSou() {
   const { perfil, usuario } = useAuth();
-  return perfil?.nome || usuario?.email || "Equipe";
+  return perfil?.nome || usuario?.displayName || usuario?.email?.split("@")[0] || "Equipe";
+}
+
+/**
+ * Mostra nome no lugar de e-mail. Pedidos e mesas antigos ficaram gravados
+ * com o e-mail de quem lançou: aqui vira o nome cadastrado na Equipe.
+ */
+export function useNomePessoa() {
+  const { usuario } = useAuth();
+  const { usuarios } = useDados();
+  const quem = useQuemSou();
+  return useCallback(
+    (x?: string | null) => {
+      if (!x || !x.includes("@")) return x ?? "";
+      const email = x.toLowerCase();
+      const cadastrado = usuarios.find((u) => u.email?.toLowerCase() === email)?.nome;
+      if (cadastrado) return cadastrado;
+      if (usuario?.email?.toLowerCase() === email) return quem;
+      return x.split("@")[0];
+    },
+    [usuarios, usuario, quem],
+  );
 }
 
 /** Uma linha de item: "2× Porção de fritas" + observação em destaque. */
@@ -43,6 +65,7 @@ export function LinhaItemPedido({
   grande?: boolean;
   aoCancelar?: () => void;
 }) {
+  const nomePessoa = useNomePessoa();
   return (
     <li className={`flex items-start gap-2 ${grande ? "py-1.5" : "py-1"}`}>
       <span
@@ -69,7 +92,7 @@ export function LinhaItemPedido({
         {item.cancelado && (
           <p className="text-xs font-semibold text-red-600 dark:text-red-400">
             Cancelado{item.motivoCancelamento ? ` — ${item.motivoCancelamento}` : ""}
-            {item.canceladoPor ? ` (${item.canceladoPor})` : ""}
+            {item.canceladoPor ? ` (${nomePessoa(item.canceladoPor)})` : ""}
           </p>
         )}
       </div>
