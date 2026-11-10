@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { imprimirCupom } from "@/lib/imprimirCupom";
 import { Printer } from "lucide-react";
 import { EMPRESA } from "@/lib/empresa";
 import { ROTULO_FORMA, numeroVenda, pagoVenda, saldoVenda, subtotalItens, totalVenda } from "@/lib/vendas";
@@ -126,16 +127,11 @@ export function useImprimirVenda() {
 
   useEffect(() => {
     if (fila.length === 0) return;
-    document.body.classList.add("imprimindo-cupom");
     const t = setTimeout(() => {
-      window.print();
-      document.body.classList.remove("imprimindo-cupom");
+      imprimirCupom();
       setFila([]);
     }, 120);
-    return () => {
-      clearTimeout(t);
-      document.body.classList.remove("imprimindo-cupom");
-    };
+    return () => clearTimeout(t);
   }, [fila]);
 
   const imprimir = useCallback((v: Venda) => setFila([v]), []);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { imprimirCupom } from "@/lib/imprimirCupom";
 import { numeroVenda } from "@/lib/vendas";
 import type { Pedido, PedidoItem } from "@/lib/types";
 
@@ -107,16 +108,11 @@ export function useImpressaoCozinha() {
 
   useEffect(() => {
     if (fila.length === 0) return;
-    document.body.classList.add("imprimindo-cupom");
     const t = setTimeout(() => {
-      window.print();
-      document.body.classList.remove("imprimindo-cupom");
+      imprimirCupom();
       setFila([]);
     }, 120);
-    return () => {
-      clearTimeout(t);
-      document.body.classList.remove("imprimindo-cupom");
-    };
+    return () => clearTimeout(t);
   }, [fila]);
 
   const imprimir = useCallback((cupons: Cupom[]) => {

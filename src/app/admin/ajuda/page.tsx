@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Cabecalho } from "@/components/ui";
+import { AtalhoImpressao } from "@/components/AtalhoImpressao";
 import { useAuth } from "@/lib/auth";
 import type { Permissoes } from "@/lib/types";
 
@@ -173,6 +174,7 @@ export default function AjudaPage() {
     <>
       <Cabecalho titulo="Ajuda" subtitulo="Como fazer cada coisa no sistema, passo a passo" />
       <div className="grid gap-3 px-4 pb-8 md:grid-cols-2 md:px-6">
+        {(permissoes.vendas || permissoes.cozinha) && <AtalhoImpressao />}
         {visiveis.map(({ titulo, quando, passos, href, botao, Icone }) => (
           <section key={titulo} className="card flex flex-col p-4">
             <div className="mb-3 flex items-start gap-3">
