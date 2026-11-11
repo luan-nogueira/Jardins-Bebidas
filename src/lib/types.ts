@@ -150,6 +150,8 @@ export interface PedidoItem {
   qtd: number;
   /** "sem gelo", "bem passado"… */
   obs?: string;
+  /** Cigarro vendido em maço: cada 1 da qtd = esse tanto de unidades (igual a VendaItem.fator). */
+  fator?: number;
   cancelado?: boolean;
   motivoCancelamento?: string;
   canceladoEm?: string;

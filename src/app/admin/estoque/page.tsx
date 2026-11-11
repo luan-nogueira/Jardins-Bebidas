@@ -6,7 +6,7 @@ import { Cabecalho, Modal } from "@/components/ui";
 import { Protegido } from "@/components/Protegido";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, caixasEUnidades, dataBR, dataHoraBR, hojeISO, normalizar } from "@/lib/format";
+import { brl, dataBR, dataHoraBR, hojeISO, normalizar } from "@/lib/format";
 import { compararCategorias, estoqueBaixo, estoqueNegativo, semCustoNoEstoque } from "@/lib/calc";
 import {
   inicioDoMes,
@@ -14,7 +14,7 @@ import {
   ModalNovoMovimento,
   resumoPrazo,
 } from "@/components/Compras";
-import { numeroVenda } from "@/lib/vendas";
+import { numeroVenda, textoEstoque } from "@/lib/vendas";
 import { somarDias } from "@/lib/format";
 import Link from "next/link";
 import { ModalPlanilha } from "@/components/ModalPlanilha";
@@ -432,7 +432,7 @@ function EstoquePageInterno() {
                               {p.estoqueUn} un
                               {p.unPorCaixa > 1 && (
                                 <span className="block text-[10px] font-bold text-texto-suave uppercase">
-                                  {caixasEUnidades(p.estoqueUn, p.unPorCaixa)}
+                                  {textoEstoque(p)}
                                 </span>
                               )}
                             </td>
@@ -511,7 +511,7 @@ function EstoquePageInterno() {
                             <span className="block">{p.estoqueUn} un</span>
                             {p.unPorCaixa > 1 && (
                               <span className="block text-[10px] text-texto-suave/80 font-bold uppercase mt-0.5">
-                                {caixasEUnidades(p.estoqueUn, p.unPorCaixa)}
+                                {textoEstoque(p)}
                               </span>
                             )}
                           </div>
@@ -681,7 +681,7 @@ function ModalHistorico({
             </span>
             {produto.unPorCaixa > 1 && (
               <span className="block text-[11px] font-semibold text-texto-suave uppercase">
-                {caixasEUnidades(produto.estoqueUn, produto.unPorCaixa)}
+                {textoEstoque(produto)}
               </span>
             )}
           </div>

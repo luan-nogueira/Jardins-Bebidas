@@ -16,6 +16,7 @@ import {
   precoDe,
   subtotalItens,
   precoMaco,
+  textoEstoque,
   vendePorMaco,
 } from "@/lib/vendas";
 import type {
@@ -118,8 +119,12 @@ export function SeletorProdutos({
   // cartão a cada toque (a animação reinicia quando a key muda).
   const [toques, setToques] = useState({ id: "", n: 0 });
   const [perguntando, setPerguntando] = useState<Produto | null>(null);
+  // O leitor de código de barras manda um Enter: sem essa trava ele já
+  // "clicava" em Maço no instante em que a pergunta abria.
+  const perguntouEm = useRef(0);
   function escolher(p: Produto, qtd = 1) {
     if (aoEscolherMaco && vendePorMaco(p)) {
+      perguntouEm.current = Date.now();
       setPerguntando(p);
       return;
     }
@@ -128,7 +133,7 @@ export function SeletorProdutos({
   }
   function escolherDoModal(maco: boolean) {
     const p = perguntando;
-    if (!p) return;
+    if (!p || Date.now() - perguntouEm.current < 500) return;
     setPerguntando(null);
     setToques((t) => ({ id: p.id, n: t.id === p.id ? t.n + 1 : 1 }));
     if (maco) aoEscolherMaco?.(p);
@@ -316,10 +321,11 @@ function CartaoProduto({
             title="Estoque"
           >
             <span className={`h-2 w-2 shrink-0 rounded-full ${nivel.ponto}`} />
-            <span className="truncate">{caixasEUnidades(p.estoqueUn, p.unPorCaixa)}</span>
+            <span className="truncate">{textoEstoque(p)}</span>
           </span>
         )}
-        {temCaixa && (
+        {/* Cigarro: o toque no cartão já pergunta maço ou unidade. */}
+        {temCaixa && !vendePorMaco(p) && (
           <button
             type="button"
             onClick={() => aoEscolher(p.unPorCaixa)}
@@ -327,7 +333,7 @@ function CartaoProduto({
             title={`Adicionar 1 caixa (${p.unPorCaixa} un) · ${brl(preco * p.unPorCaixa)}`}
             aria-label={`Adicionar 1 caixa de ${p.nome} (${p.unPorCaixa} unidades)`}
           >
-            {vendePorMaco(p) ? "+maço" : `+cx ${p.unPorCaixa}`}
+            +cx {p.unPorCaixa}
           </button>
         )}
       </div>

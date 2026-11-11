@@ -88,7 +88,7 @@ export function telefoneBR(valor: string): string {
  * negativo arredondava pra longe do zero (-119 un em cx de 24 virava
  * "-5 cx" em vez de "-4 cx - 23 un").
  */
-export function caixasEUnidades(totalUn: number, unPorCaixa: number): string {
+export function caixasEUnidades(totalUn: number, unPorCaixa: number, pacote = "cx"): string {
   if (unPorCaixa <= 1) return `${totalUn} un`;
   const negativo = totalUn < 0;
   const abs = Math.abs(totalUn);
@@ -97,7 +97,9 @@ export function caixasEUnidades(totalUn: number, unPorCaixa: number): string {
   const sinal = negativo ? "-" : "";
   const juntar = negativo ? " - " : " + ";
   if (cx === 0) return `${sinal}${un} un`;
-  return un > 0 ? `${sinal}${cx} cx${juntar}${un} un` : `${sinal}${cx} cx`;
+  // "cx" não vai pro plural; "maço" vira "maços".
+  const rotulo = pacote !== "cx" && cx > 1 ? `${pacote}s` : pacote;
+  return un > 0 ? `${sinal}${cx} ${rotulo}${juntar}${un} un` : `${sinal}${cx} ${rotulo}`;
 }
 
 /** Soma dias a uma data YYYY-MM-DD, sem passar por UTC. */

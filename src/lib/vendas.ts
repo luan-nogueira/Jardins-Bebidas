@@ -1,5 +1,5 @@
 import { novoId } from "./db";
-import { hojeISO } from "./format";
+import { hojeISO, caixasEUnidades } from "./format";
 import type {
   EstoqueMovimento,
   FormaPagamento,
@@ -108,6 +108,11 @@ export function adicionarItem(itens: VendaItem[], produto: Produto, qtd = 1, ret
 /** Cigarro e afins: na hora de vender pergunta se é o maço ou a unidade. */
 export function vendePorMaco(p: Produto): boolean {
   return p.unPorCaixa > 1 && /tabac|cigar|fumo/i.test(`${p.categoria} ${p.nome}`);
+}
+
+/** Estoque pra mostrar: cigarro em "maços + un", o resto em "cx + un". */
+export function textoEstoque(p: Produto): string {
+  return caixasEUnidades(p.estoqueUn, p.unPorCaixa, vendePorMaco(p) ? "maço" : "cx");
 }
 
 export function precoMaco(p: Produto): number {

@@ -45,11 +45,12 @@ export function pedidoEmAndamento(p: Pedido) {
  * Tira `qtd` unidades do produto da comanda (item cancelado no pedido).
  * Começa pelas linhas mais novas; linha zerada sai da comanda.
  */
-export function tirarDaComanda(itens: VendaItem[], produtoId: string, qtd: number): VendaItem[] {
+export function tirarDaComanda(itens: VendaItem[], produtoId: string, qtd: number, fator?: number): VendaItem[] {
   const novos = [...itens];
   let falta = qtd;
   for (let i = novos.length - 1; i >= 0 && falta > 0; i--) {
-    if (novos[i].produtoId !== produtoId) continue;
+    // Maço só tira da linha de maço; unidade só da linha de unidade.
+    if (novos[i].produtoId !== produtoId || (novos[i].fator ?? 0) !== (fator ?? 0)) continue;
     const tira = Math.min(falta, novos[i].qtd);
     falta -= tira;
     novos[i] = { ...novos[i], qtd: novos[i].qtd - tira };

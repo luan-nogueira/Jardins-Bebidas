@@ -32,7 +32,7 @@ import {
 import { useDados, novoId } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { brl, horaBR } from "@/lib/format";
-import { adicionarItem, numeroVenda, pagoVenda, saldoVenda, totalVenda, unidadesVenda } from "@/lib/vendas";
+import { adicionarItem, adicionarMaco, numeroVenda, pagoVenda, saldoVenda, totalVenda, unidadesVenda } from "@/lib/vendas";
 import { comStatus, minutosDesde, nomeComanda, pedidoEmAndamento } from "@/lib/pedidos";
 import type { Pedido, Produto, Venda } from "@/lib/types";
 
@@ -352,6 +352,8 @@ interface Linha {
   produto: Produto;
   qtd: number;
   obs: string;
+  /** Cigarro: true = maço, false = unidade. */
+  maco?: boolean;
 }
 
 function MesaAberta({ id }: { id: string }) {
@@ -400,11 +402,11 @@ function MesaAberta({ id }: { id: string }) {
   const qtdCarrinho = carrinho.reduce((s, l) => s + l.qtd, 0);
   const emAndamento = daMesa.filter((p) => p.status === "NOVO" || p.status === "PREPARANDO").length;
 
-  function colocar(p: Produto, qtd = 1) {
+  function colocar(p: Produto, qtd = 1, maco = false) {
     setCarrinho((atual) => {
-      const i = atual.findIndex((l) => l.produto.id === p.id && !l.obs);
+      const i = atual.findIndex((l) => l.produto.id === p.id && !l.obs && !!l.maco === maco);
       if (i >= 0) return atual.map((l, j) => (j === i ? { ...l, qtd: l.qtd + qtd } : l));
-      return [...atual, { chave: novoId(), produto: p, qtd, obs: "" }];
+      return [...atual, { chave: novoId(), produto: p, qtd, obs: "", maco }];
     });
   }
 
@@ -429,9 +431,10 @@ function MesaAberta({ id }: { id: string }) {
         garcom: quem,
         itens: carrinho.map((l) => ({
           produtoId: l.produto.id,
-          nome: l.produto.nome,
+          nome: l.maco ? `${l.produto.nome} (maço)` : l.produto.nome,
           categoria: l.produto.categoria || "Sem categoria",
           qtd: l.qtd,
+          ...(l.maco && { fator: l.produto.unPorCaixa }),
           obs: l.obs.trim() || undefined,
         })),
         obs: obsGeral.trim() || undefined,
@@ -440,7 +443,8 @@ function MesaAberta({ id }: { id: string }) {
         atualizadoEm: agoraIso,
       };
       let itens = (vendaPorId(c.id) ?? c).itens;
-      for (const l of carrinho) itens = adicionarItem(itens, l.produto, l.qtd, !!c.retirada);
+      for (const l of carrinho)
+        itens = l.maco ? adicionarMaco(itens, l.produto, l.qtd) : adicionarItem(itens, l.produto, l.qtd, !!c.retirada);
       await salvarPedido(pedido);
       await salvarVenda({ ...(vendaPorId(c.id) ?? c), itens, atualizadoEm: agoraIso });
       setCarrinho([]);
@@ -506,7 +510,11 @@ function MesaAberta({ id }: { id: string }) {
       {montando ? (
         <div className="px-4 pb-24 md:px-6">
           <p className="mb-2 text-sm font-bold">Toque nos produtos do novo pedido</p>
-          <SeletorProdutos aoEscolher={colocar} retirada={!!c.retirada} />
+          <SeletorProdutos
+            aoEscolher={(p, qtd) => colocar(p, qtd)}
+            aoEscolherMaco={(p) => colocar(p, 1, true)}
+            retirada={!!c.retirada}
+          />
           <div className="fixed inset-x-3 bottom-4 z-20 mx-auto flex max-w-3xl items-center gap-2 pb-[env(safe-area-inset-bottom)]">
             <button
               className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-borda bg-superficie shadow-xl"
@@ -674,7 +682,10 @@ function MesaAberta({ id }: { id: string }) {
           {carrinho.map((l) => (
             <li key={l.chave} className="rounded-xl border border-borda p-3">
               <div className="flex items-center gap-2">
-                <p className="min-w-0 flex-1 truncate font-semibold">{l.produto.nome}</p>
+                <p className="min-w-0 flex-1 truncate font-semibold">
+                  {l.produto.nome}
+                  {l.maco && <span className="text-acento"> (maço)</span>}
+                </p>
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-borda"
                   onClick={() => mudarLinha(l.chave, { qtd: l.qtd - 1 })}

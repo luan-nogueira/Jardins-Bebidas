@@ -16,10 +16,10 @@ import { PrimeirosPassos, TarefasDoDia, saudacao } from "@/components/Inicio";
 import { BarrasHorizontais, BarrasVerticais, CartaoGrafico } from "@/components/Graficos";
 import { useDados } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, caixasEUnidades, hojeISO, num, somarDias } from "@/lib/format";
+import { brl, hojeISO, num, somarDias } from "@/lib/format";
 import { estoqueBaixo, estoqueNegativo, nivelEstoque } from "@/lib/calc";
 import { COR_NIVEL, visualCategoria } from "@/lib/categoriaVisual";
-import { saldoVenda, totalVenda, vendaEmAberto, vendaVencida } from "@/lib/vendas";
+import { saldoVenda, textoEstoque, totalVenda, vendaEmAberto, vendaVencida } from "@/lib/vendas";
 import {
   noPeriodo,
   porCategoria,
@@ -248,7 +248,7 @@ export default function Painel() {
                       <span className="min-w-0 flex-1 truncate font-semibold">{p.nome}</span>
                       <span className={`flex shrink-0 items-center gap-1.5 text-xs font-bold tabular-nums ${nivel.texto}`}>
                         <span className={`h-2 w-2 rounded-full ${nivel.ponto}`} />
-                        {caixasEUnidades(p.estoqueUn, p.unPorCaixa)}
+                        {textoEstoque(p)}
                       </span>
                     </li>
                   );

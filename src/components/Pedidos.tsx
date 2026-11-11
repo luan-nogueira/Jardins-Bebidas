@@ -160,7 +160,7 @@ export function ModalCancelarPedido({
       const venda = vendaPorId(pedido.vendaId);
       if (venda && venda.status === "ABERTA") {
         let vItens = venda.itens;
-        for (const c of cancelados) vItens = tirarDaComanda(vItens, c.produtoId, c.qtd);
+        for (const c of cancelados) vItens = tirarDaComanda(vItens, c.produtoId, c.qtd, c.fator);
         await salvarVenda({ ...venda, itens: vItens, atualizadoEm: agora });
       }
       aoFechar();
