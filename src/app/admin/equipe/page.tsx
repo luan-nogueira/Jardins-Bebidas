@@ -5,7 +5,9 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  KeyRound,
   Pencil,
+  RefreshCw,
   Plus,
   ShieldCheck,
   ShieldOff,
@@ -20,7 +22,7 @@ import { mensagemDeErro, useAuth } from "@/lib/auth";
 import { updateProfile } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { PERMISSOES_GARCOM, PERMISSOES_PADRAO_FUNCIONARIO, acessoExpirado } from "@/lib/types";
-import { horaBR } from "@/lib/format";
+import { dataHoraBR, horaBR } from "@/lib/format";
 import type { PapelUsuario, Permissoes, Usuario } from "@/lib/types";
 
 const ROTULO_PERMISSAO: Record<keyof Permissoes, string> = {
@@ -335,6 +337,21 @@ function EquipePageInterno() {
             </li>
           ))}
         </ul>
+
+        <ContasFirebase
+          usuarios={usuarios}
+          aoConfigurar={(c) =>
+            abrirEdicao({
+              id: c.uid,
+              email: c.email,
+              nome: c.nome || c.email.split("@")[0],
+              papel: "funcionario",
+              permissoes: { ...PERMISSOES_PADRAO_FUNCIONARIO },
+              ativo: true,
+              criadoEm: c.criadoEm ?? new Date().toISOString(),
+            })
+          }
+        />
       </div>
 
       <Modal
@@ -591,5 +608,150 @@ function SeuNome() {
         </p>
       )}
     </div>
+  );
+}
+
+interface ContaFirebase {
+  uid: string;
+  email: string;
+  nome: string;
+  criadoEm: string | null;
+  ultimoAcesso: string | null;
+  desativada: boolean;
+}
+
+/**
+ * Todas as contas de login do Firebase (Authentication). Conta sem cadastro
+ * em Equipe tem acesso TOTAL pelas regras (é tratada como dono), por isso
+ * aparece destacada com o botão pra configurar.
+ */
+function ContasFirebase({
+  usuarios,
+  aoConfigurar,
+}: {
+  usuarios: Usuario[];
+  aoConfigurar: (c: ContaFirebase) => void;
+}) {
+  const { usuario, exigeLogin } = useAuth();
+  const [estado, setEstado] = useState<"carregando" | "ok" | "sem-chave" | "erro">("carregando");
+  const [contas, setContas] = useState<ContaFirebase[]>([]);
+  const [voce, setVoce] = useState("");
+
+  async function carregar() {
+    const atual = exigeLogin ? getFirebaseAuth().currentUser : null;
+    if (!atual) return;
+    setEstado("carregando");
+    try {
+      const r = await fetch("/api/equipe/contas", {
+        headers: { authorization: `Bearer ${await atual.getIdToken()}` },
+        cache: "no-store",
+      });
+      const dados = await r.json().catch(() => ({}));
+      if (r.status === 501) return setEstado("sem-chave");
+      if (!r.ok) return setEstado("erro");
+      setContas(dados.contas ?? []);
+      setVoce(dados.voce ?? "");
+      setEstado("ok");
+    } catch {
+      setEstado("erro");
+    }
+  }
+
+  useEffect(() => {
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.uid]);
+
+  // Modo demonstração não tem Firebase.
+  if (!exigeLogin || !usuario) return null;
+
+  const porId = new Map(usuarios.map((u) => [u.id, u]));
+  const ordenadas = [...contas].sort((a, b) => (b.ultimoAcesso ?? "").localeCompare(a.ultimoAcesso ?? ""));
+  const semCadastro = contas.filter((c) => c.uid !== voce && !porId.has(c.uid)).length;
+
+  return (
+    <section className="card mt-6 mb-6 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-borda px-4 py-3">
+        <KeyRound className="h-4 w-4 text-acento" />
+        <h2 className="flex-1 font-bold">
+          Todas as contas no Firebase{estado === "ok" ? ` (${contas.length})` : ""}
+        </h2>
+        <button className="btn-secundario px-2.5 py-1.5" onClick={carregar} aria-label="Atualizar lista">
+          <RefreshCw className={`h-4 w-4 ${estado === "carregando" ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      {estado === "carregando" && <p className="px-4 py-6 text-center text-sm text-texto-suave">Carregando…</p>}
+      {estado === "erro" && (
+        <p className="px-4 py-6 text-center text-sm text-red-600">Não consegui buscar as contas. Tenta atualizar.</p>
+      )}
+      {estado === "sem-chave" && (
+        <div className="space-y-2 px-4 py-4 text-sm">
+          <p className="font-semibold">Falta uma configuração pra listar as contas do Firebase aqui:</p>
+          <ol className="list-decimal space-y-1 pl-5 text-texto-suave">
+            <li>
+              Firebase → ⚙️ Configurações do projeto → <strong>Contas de serviço</strong> →{" "}
+              <strong>Gerar nova chave privada</strong> (baixa um arquivo .json).
+            </li>
+            <li>
+              Vercel → projeto → Settings → <strong>Environment Variables</strong> → nova variável{" "}
+              <code className="rounded bg-superficie-2 px-1">FIREBASE_SERVICE_ACCOUNT</code> e cole o conteúdo
+              inteiro do arquivo.
+            </li>
+            <li>Vercel → Deployments → Redeploy. Depois apague o arquivo baixado do computador.</li>
+          </ol>
+        </div>
+      )}
+
+      {estado === "ok" && (
+        <>
+          {semCadastro > 0 && (
+            <p className="border-b border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+              {semCadastro} conta(s) sem cadastro em Equipe — elas entram com <strong>acesso total</strong>. Toque em
+              &quot;Configurar&quot; pra definir o que podem ver (ou desative).
+            </p>
+          )}
+          <ul className="divide-y divide-borda">
+            {ordenadas.map((c) => {
+              const u = porId.get(c.uid);
+              const ehVoce = c.uid === voce;
+              return (
+                <li key={c.uid} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {u?.nome || c.nome || c.email.split("@")[0] || "Sem nome"}
+                    </p>
+                    <p className="truncate text-xs text-texto-suave">{c.email || c.uid}</p>
+                    <p className="text-xs text-texto-suave">
+                      {c.ultimoAcesso ? `Último acesso ${dataHoraBR(c.ultimoAcesso)}` : "Nunca entrou"}
+                      {c.criadoEm ? ` · criada ${dataHoraBR(c.criadoEm)}` : ""}
+                    </p>
+                  </div>
+                  {ehVoce ? (
+                    <span className="chip bg-acento/15 text-acento">Você</span>
+                  ) : c.desativada ? (
+                    <span className="chip bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400">Bloqueada</span>
+                  ) : u ? (
+                    <span
+                      className={`chip ${
+                        u.ativo === false
+                          ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      }`}
+                    >
+                      {u.ativo === false ? "Desativado" : u.papel === "garcom" ? "Garçom" : u.papel === "admin" ? "Admin" : "Na equipe"}
+                    </span>
+                  ) : (
+                    <button className="btn-primario shrink-0 px-3 py-1.5 text-xs" onClick={() => aoConfigurar(c)}>
+                      Configurar
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
