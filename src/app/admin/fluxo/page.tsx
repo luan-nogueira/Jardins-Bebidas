@@ -113,7 +113,10 @@ function Fluxo() {
   const dinheiroSaiu = saidas
     .filter((s) => s.forma === ROTULO_FORMA.DINHEIRO && s.pagoPor === CAIXA_DA_LOJA)
     .reduce((s, x) => s + x.valor, 0);
-  const dinheiroNoCaixa = porForma.DINHEIRO.valor - dinheiroSaiu;
+  // Sem venda em dinheiro lançada no mês, a conta só teria os gastos e daria
+  // um saldo negativo que não existe na gaveta — então fica zerado.
+  const semVendaDinheiro = porForma.DINHEIRO.qtd === 0;
+  const dinheiroNoCaixa = semVendaDinheiro ? 0 : porForma.DINHEIRO.valor - dinheiroSaiu;
 
   /** Todos os dias do mês até hoje (dia sem movimento também aparece). */
   const dias = useMemo<Dia[]>(() => {
@@ -254,7 +257,7 @@ function Fluxo() {
           <Mini
             rotulo="Dinheiro no caixa"
             valor={brl(dinheiroNoCaixa)}
-            detalhe="entrou − pago em dinheiro"
+            detalhe={semVendaDinheiro ? "sem venda em dinheiro no mês" : "entrou − pago em dinheiro"}
             Icone={Wallet}
           />
           <Mini rotulo="Média por dia" valor={brl(mediaDia)} detalhe="nos dias com venda" />
