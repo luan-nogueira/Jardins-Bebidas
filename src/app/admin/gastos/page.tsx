@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Circle,
   Download,
   ImageIcon,
   HandCoins,
@@ -129,6 +130,8 @@ function Gastos() {
   const [vendoBolso, setVendoBolso] = useState<string | null>(null);
   const [confirmandoAcerto, setConfirmandoAcerto] = useState(false);
   const [acertando, setAcertando] = useState(false);
+  /** Lançamentos que o dono desmarcou no acerto (o resto vai como pago). */
+  const [desmarcados, setDesmarcados] = useState<Set<string>>(new Set());
 
   /** Os do boleto primeiro (na ordem do Nilo), depois o resto do cadastro. */
   const opcoesFornecedor = useMemo(() => {
@@ -168,6 +171,18 @@ function Gastos() {
       .sort((a, b) => b.total - a.total);
   }, [contasPagar]);
   const bolsoAberto = doBolso.find((p) => p.nome === vendoBolso);
+  const selecionados = bolsoAberto?.contas.filter((c) => !desmarcados.has(c.id)) ?? [];
+  const totalSelecionado = selecionados.reduce((s, c) => s + c.valor, 0);
+  const todosMarcados = !!bolsoAberto && selecionados.length === bolsoAberto.contas.length;
+  function alternar(id: string) {
+    setConfirmandoAcerto(false);
+    setDesmarcados((d) => {
+      const n = new Set(d);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
 
   /** Categoria aberta no detalhe do gráfico ("Funcionários" → Serinho, Max, Alice). */
   const [vendoGrupo, setVendoGrupo] = useState<string | null>(null);
@@ -206,14 +221,16 @@ function Gastos() {
     todasCategorias || escondida ? CATEGORIAS_GASTO : CATEGORIAS_GASTO.slice(0, CATEGORIAS_VISIVEIS);
 
   async function acertar() {
-    if (!bolsoAberto) return;
+    if (!bolsoAberto || !selecionados.length) return;
     setAcertando(true);
     try {
       const agora = new Date().toISOString();
-      await Promise.all(bolsoAberto.contas.map((c) => salvarContaPagar({ ...c, acertadoEm: agora })));
-      setFeito(`${brl(bolsoAberto.total)} acertado com ${bolsoAberto.nome}`);
+      await Promise.all(selecionados.map((c) => salvarContaPagar({ ...c, acertadoEm: agora })));
+      setFeito(`${brl(totalSelecionado)} acertado com ${bolsoAberto.nome}`);
       setTimeout(() => setFeito(""), 3000);
-      setVendoBolso(null);
+      // Se sobrou algum desmarcado, continua aberto mostrando o que falta.
+      if (todosMarcados) setVendoBolso(null);
+      setDesmarcados(new Set());
     } catch {
       setErro("Não salvou o acerto. Confira a internet e tente de novo.");
     } finally {
@@ -766,7 +783,10 @@ function Gastos() {
                 {doBolso.map((p) => (
                   <li key={p.nome}>
                     <button
-                      onClick={() => setVendoBolso(p.nome)}
+                      onClick={() => {
+                        setDesmarcados(new Set());
+                        setVendoBolso(p.nome);
+                      }}
                       className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-superficie-2"
                     >
                       <span className="min-w-0 flex-1 truncate font-semibold">{p.nome}</span>
@@ -899,12 +919,13 @@ function Gastos() {
                 Voltar
               </button>
               <button className="btn-primario" onClick={acertar} disabled={acertando}>
-                {acertando ? "Salvando…" : `Sim, recebeu ${brl(bolsoAberto.total)}`}
+                {acertando ? "Salvando…" : `Sim, recebeu ${brl(totalSelecionado)}`}
               </button>
             </>
           ) : (
-            <button className="btn-primario" onClick={() => setConfirmandoAcerto(true)}>
-              <HandCoins className="h-4 w-4" /> Caixa já pagou
+            <button className="btn-primario" onClick={() => setConfirmandoAcerto(true)} disabled={!selecionados.length}>
+              <HandCoins className="h-4 w-4" />
+              {todosMarcados ? "Caixa já pagou" : `Caixa pagou ${selecionados.length} de ${bolsoAberto.contas.length}`}
             </button>
           ))
         }
@@ -912,35 +933,62 @@ function Gastos() {
         {bolsoAberto && (
           <div className="space-y-3">
             <div className="flex items-baseline justify-between rounded-xl bg-superficie-2 px-4 py-3">
-              <span className="text-sm font-semibold text-texto-suave">A acertar</span>
-              <span className="text-2xl font-black tabular-nums">{brl(bolsoAberto.total)}</span>
+              <span className="text-sm font-semibold text-texto-suave">{todosMarcados ? "A acertar" : "Selecionado"}</span>
+              <span className="text-2xl font-black tabular-nums">{brl(totalSelecionado)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-xs text-texto-suave">
+              <span>Toque pra marcar só o que o caixa pagou.</span>
+              <button
+                className="shrink-0 font-semibold text-acento"
+                onClick={() => {
+                  setConfirmandoAcerto(false);
+                  setDesmarcados(selecionados.length ? new Set(bolsoAberto.contas.map((c) => c.id)) : new Set());
+                }}
+              >
+                {selecionados.length ? "Desmarcar todos" : "Marcar todos"}
+              </button>
             </div>
             {confirmandoAcerto && (
               <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-                O caixa devolveu {brl(bolsoAberto.total)} pra {bolsoAberto.nome}? Esses lançamentos saem da lista de
-                acerto (continuam nas saídas do mês).
+                O caixa devolveu {brl(totalSelecionado)} pra {bolsoAberto.nome}?{" "}
+                {selecionados.length === 1 ? "Esse lançamento sai" : `Esses ${selecionados.length} lançamentos saem`} da
+                lista de acerto (continuam nas saídas do mês).
               </p>
             )}
             <ul className="divide-y divide-borda">
               {bolsoAberto.contas.map((c) => {
                 const Icone = iconeGasto(c.categoria ?? "");
+                const marcado = !desmarcados.has(c.id);
                 return (
-                  <li key={c.id} className="flex items-center gap-3 py-2.5">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-acento/10 text-acento">
-                      <Icone className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{c.descricao}</span>
-                      <span className="block truncate text-xs text-texto-suave">
-                        {[
-                          dataBR(diaSaida(c)),
-                          c.fornecedorNome && c.fornecedorNome !== c.descricao ? c.fornecedorNome : c.categoria,
-                          c.forma && ROTULO_FORMA_GASTO[c.forma],
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
+                  <li key={c.id} className={`flex items-center gap-2 py-2.5 ${marcado ? "" : "opacity-50"}`}>
+                    <button
+                      onClick={() => alternar(c.id)}
+                      role="checkbox"
+                      aria-checked={marcado}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      {marcado ? (
+                        <CheckCircle2 className="h-6 w-6 shrink-0 text-acento" />
+                      ) : (
+                        <Circle className="h-6 w-6 shrink-0 text-texto-suave" />
+                      )}
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-acento/10 text-acento">
+                        <Icone className="h-4 w-4" />
                       </span>
-                    </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{c.descricao}</span>
+                        <span className="block truncate text-xs text-texto-suave">
+                          {[
+                            dataBR(diaSaida(c)),
+                            c.fornecedorNome && c.fornecedorNome !== c.descricao ? c.fornecedorNome : c.categoria,
+                            c.forma && ROTULO_FORMA_GASTO[c.forma],
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-bold tabular-nums">{brl(c.valor)}</span>
+                    </button>
                     {c.temComprovante && (
                       <button
                         onClick={() => void verComprovante(c.id)}
@@ -950,7 +998,6 @@ function Gastos() {
                         <ImageIcon className="h-4 w-4" />
                       </button>
                     )}
-                    <span className="shrink-0 font-bold tabular-nums">{brl(c.valor)}</span>
                   </li>
                 );
               })}
