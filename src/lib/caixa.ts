@@ -27,7 +27,21 @@ export function useCaixas() {
     });
   }, [ativo]);
   const aberto = useMemo(() => caixas.find((c) => c.status === "ABERTO") ?? null, [caixas]);
-  return { caixas, aberto, carregando, salvar: (c: Caixa) => colecao<Caixa>("caixas").salvar(c) };
+  async function salvar(c: Caixa) {
+    try {
+      await colecao<Caixa>("caixas").salvar(c);
+    } catch (e) {
+      // Sem isso, um erro de gravação deixava o botão "sem fazer nada".
+      const codigo = (e as { code?: string })?.code;
+      alert(
+        codigo === "permission-denied"
+          ? "O Firebase bloqueou o caixa: faltam publicar as regras novas (Firebase → Firestore → Regras → Publicar)."
+          : "Não salvou o caixa. Confere a internet e tenta de novo.",
+      );
+      throw e;
+    }
+  }
+  return { caixas, aberto, carregando, salvar };
 }
 
 const dentro = (iso: string | undefined, de: string, ate: string) => !!iso && iso >= de && iso <= ate;
