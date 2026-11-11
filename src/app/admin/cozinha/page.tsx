@@ -398,8 +398,8 @@ function Painel() {
         </div>
       )}
 
-      {/* Celular: uma coluna por vez */}
-      <div className={`mx-4 mb-3 grid grid-cols-3 gap-1 rounded-xl bg-superficie-2 p-1 md:hidden ${modoTela ? "mt-4" : ""}`}>
+      {/* Celular e tablet: uma coluna por vez (3 colunas só cabem do notebook pra cima) */}
+      <div className={`mx-4 mb-3 grid grid-cols-3 gap-1 rounded-xl bg-superficie-2 p-1 md:mx-6 lg:hidden ${modoTela ? "mt-4" : ""}`}>
         {COLUNAS.map(({ status }) => (
           <button
             key={status}
@@ -416,12 +416,12 @@ function Painel() {
           <Vazio Icone={ChefHat} titulo="Nenhum pedido agora" descricao="Os pedidos que o garçom enviar aparecem aqui na hora." />
         </div>
       ) : (
-        <div className={`grid gap-4 px-4 md:grid-cols-3 md:px-6 ${modoTela ? "mt-4 lg:[zoom:1.2]" : ""}`}>
+        <div className={`grid gap-4 px-4 md:px-6 lg:grid-cols-3 ${modoTela ? "mt-4 lg:[zoom:1.2]" : ""}`}>
           {COLUNAS.map(({ status, titulo, Icone, cor }) => {
             const daColuna = ativos.filter((p) => p.status === status);
             return (
-              <section key={status} className={colunaCelular === status ? "" : "hidden md:block"}>
-                <h2 className={`mb-2 hidden items-center gap-1.5 font-black md:flex ${modoTela ? "text-lg" : "text-sm"} ${cor}`}>
+              <section key={status} className={colunaCelular === status ? "" : "hidden lg:block"}>
+                <h2 className={`mb-2 hidden items-center gap-1.5 font-black lg:flex ${modoTela ? "text-lg" : "text-sm"} ${cor}`}>
                   <Icone className="h-4 w-4" />
                   {titulo}
                   <span className="ml-auto rounded-full bg-superficie-2 px-2 py-0.5 text-xs text-texto tabular-nums">

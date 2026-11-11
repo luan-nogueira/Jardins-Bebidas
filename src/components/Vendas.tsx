@@ -168,7 +168,7 @@ export function SeletorProdutos({
         <input
           ref={campoBusca}
           className="campo pl-9"
-          placeholder="Buscar produto, código ou código de barras…"
+          placeholder="Buscar produto ou código…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           onKeyDown={aoTeclar}
@@ -239,7 +239,12 @@ export function ChaveRetirada({
           onClick={() => aoMudar(r)}
           className={classe(!historico && retirada === r)}
         >
-          {r ? "Retirada" : "Consumo no local"}
+          {r ? "Retirada" : (
+            <>
+              <span className="sm:hidden">No local</span>
+              <span className="hidden sm:inline">Consumo no local</span>
+            </>
+          )}
         </button>
       ))}
       {aoHistorico && (
