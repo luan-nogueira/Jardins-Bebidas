@@ -22,7 +22,7 @@ import { Protegido } from "@/components/Protegido";
 import { BarrasHorizontais, CartaoGrafico } from "@/components/Graficos";
 import { useDados, novoId } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { brl, dataBR, hojeISO, paraNumero } from "@/lib/format";
+import { brl, dataBR, dataHoraBR, hojeISO, paraNumero } from "@/lib/format";
 import {
   CAIXA_DA_LOJA,
   CATEGORIAS_GASTO,
@@ -171,6 +171,29 @@ function Gastos() {
       .sort((a, b) => b.total - a.total);
   }, [contasPagar]);
   const bolsoAberto = doBolso.find((p) => p.nome === vendoBolso);
+
+  /** O último "Caixa já pagou" (todos os lançamentos acertados no mesmo toque), pra poder desfazer. */
+  const ultimoAcerto = useMemo(() => {
+    let ultimo = "";
+    for (const c of contasPagar) if (c.acertadoEm && c.acertadoEm > ultimo) ultimo = c.acertadoEm;
+    if (!ultimo) return null;
+    const contas = contasPagar.filter((c) => c.acertadoEm === ultimo);
+    return { em: ultimo, nome: contas[0].pagoPor ?? "", contas, total: contas.reduce((s, c) => s + c.valor, 0) };
+  }, [contasPagar]);
+  const [desfazendoAcerto, setDesfazendoAcerto] = useState<"" | "confirmar" | "salvando">("");
+  async function desfazerUltimoAcerto() {
+    if (!ultimoAcerto) return;
+    setDesfazendoAcerto("salvando");
+    try {
+      await Promise.all(ultimoAcerto.contas.map((c) => salvarContaPagar({ ...c, acertadoEm: undefined })));
+      setFeito(`${brl(ultimoAcerto.total)} voltou pra lista de acerto`);
+      setTimeout(() => setFeito(""), 3000);
+    } catch {
+      setErro("Não salvou. Confira a internet e tente de novo.");
+    } finally {
+      setDesfazendoAcerto("");
+    }
+  }
   const selecionados = bolsoAberto?.contas.filter((c) => !desmarcados.has(c.id)) ?? [];
   const totalSelecionado = selecionados.reduce((s, c) => s + c.valor, 0);
   const todosMarcados = !!bolsoAberto && selecionados.length === bolsoAberto.contas.length;
@@ -822,6 +845,37 @@ function Gastos() {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {ultimoAcerto && (
+            <section className="card flex flex-wrap items-center gap-x-3 gap-y-2 p-3 text-sm">
+              <span className="min-w-0 flex-1 text-texto-suave">
+                Último acerto: <b className="text-texto">{brl(ultimoAcerto.total)}</b> com {ultimoAcerto.nome} ·{" "}
+                {ultimoAcerto.contas.length} lanç. · {dataHoraBR(ultimoAcerto.em)}
+              </span>
+              {desfazendoAcerto === "" ? (
+                <button className="shrink-0 font-semibold text-acento" onClick={() => setDesfazendoAcerto("confirmar")}>
+                  Desfazer
+                </button>
+              ) : (
+                <span className="flex shrink-0 gap-3">
+                  <button
+                    className="font-semibold text-texto-suave"
+                    onClick={() => setDesfazendoAcerto("")}
+                    disabled={desfazendoAcerto === "salvando"}
+                  >
+                    Não
+                  </button>
+                  <button
+                    className="font-semibold text-acento"
+                    onClick={desfazerUltimoAcerto}
+                    disabled={desfazendoAcerto === "salvando"}
+                  >
+                    {desfazendoAcerto === "salvando" ? "Voltando…" : "Sim, voltar todos"}
+                  </button>
+                </span>
+              )}
             </section>
           )}
 
