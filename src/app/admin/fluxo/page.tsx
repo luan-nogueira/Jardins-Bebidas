@@ -20,7 +20,7 @@ import { useAuth } from "@/lib/auth";
 import { BarrasHorizontais, CartaoGrafico, SemDados } from "@/components/Graficos";
 import { useDados } from "@/lib/store";
 import { brl, dataBR, hojeISO } from "@/lib/format";
-import { FORMAS, ROTULO_FORMA } from "@/lib/vendas";
+import { FORMAS, ROTULO_FORMA, diaLocal } from "@/lib/vendas";
 import { CAIXA_DA_LOJA, entradasDoMes, grupoSaida, nomeMes, saidasDoMes } from "@/lib/gastos";
 import type { FormaPagamento } from "@/lib/types";
 
@@ -151,6 +151,20 @@ function Fluxo() {
     }
     return lista;
   }, [mes, mesAtual, entradas, saidas]);
+
+  /** Venda que o sistema antigo marcou em cada dia (só nos fechamentos importados da planilha). */
+  const sistemaPorDia = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const v of vendas) {
+      if (v.vendaSistema === undefined || v.status === "CANCELADA" || !v.finalizadaEm) continue;
+      const dia = diaLocal(v.finalizadaEm);
+      if (dia.startsWith(mes)) mapa.set(dia, (mapa.get(dia) ?? 0) + v.vendaSistema);
+    }
+    return mapa;
+  }, [vendas, mes]);
+  const temSistema = sistemaPorDia.size > 0;
+  const totalSistema = [...sistemaPorDia.values()].reduce((s, n) => s + n, 0);
+  const entrouDiasSistema = dias.filter((d) => sistemaPorDia.has(d.dia)).reduce((s, d) => s + d.entrou, 0);
 
   const comMovimento = dias.filter((d) => d.entrou || d.saiu);
   const melhorDia = comMovimento.reduce<Dia | null>((m, d) => (!m || d.entrou > m.entrou ? d : m), null);
@@ -307,7 +321,10 @@ function Fluxo() {
         <section className="card overflow-hidden">
           <div className="border-b border-borda px-4 py-3">
             <h2 className="text-sm font-bold">Dia a dia</h2>
-            <p className="text-xs text-texto-suave">Só os dias com movimento, do mais recente pro mais antigo</p>
+            <p className="text-xs text-texto-suave">
+              Só os dias com movimento, do mais recente pro mais antigo
+              {temSistema && " · “Sistema antigo” e “Dif.” vêm da planilha de fechamento (apurado − venda do sistema)"}
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap tabular-nums">
@@ -320,6 +337,12 @@ function Fluxo() {
                     </th>
                   ))}
                   <th className="px-3 py-2 text-right">Entrou</th>
+                  {temSistema && (
+                    <>
+                      <th className="px-3 py-2 text-right">Sistema antigo</th>
+                      <th className="px-3 py-2 text-right">Dif.</th>
+                    </>
+                  )}
                   <th className="px-3 py-2 text-right">Saiu</th>
                   <th className="px-3 py-2 text-right">Saldo do dia</th>
                   <th className="px-3 py-2 text-right">Acumulado</th>
@@ -328,7 +351,7 @@ function Fluxo() {
               <tbody className="divide-y divide-borda">
                 {comMovimento.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-3 py-8 text-center text-texto-suave">
+                    <td colSpan={temSistema ? 11 : 9} className="px-3 py-8 text-center text-texto-suave">
                       Nenhum movimento neste mês.
                     </td>
                   </tr>
@@ -342,6 +365,7 @@ function Fluxo() {
                       </td>
                     ))}
                     <td className="px-3 py-2 text-right font-bold">{d.entrou ? brl(d.entrou) : "—"}</td>
+                    {temSistema && <CelulasSistema sistema={sistemaPorDia.get(d.dia)} entrou={d.entrou} />}
                     <td className="px-3 py-2 text-right">{d.saiu ? brl(d.saiu) : "—"}</td>
                     <td className={`px-3 py-2 text-right font-bold ${d.entrou - d.saiu < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                       {brl(d.entrou - d.saiu)}
@@ -362,6 +386,7 @@ function Fluxo() {
                       </td>
                     ))}
                     <td className="px-3 py-2 text-right">{brl(entrou)}</td>
+                    {temSistema && <CelulasSistema sistema={totalSistema} entrou={entrouDiasSistema} />}
                     <td className="px-3 py-2 text-right">{brl(saiu)}</td>
                     <td className="px-3 py-2 text-right">{brl(saldo)}</td>
                     <td />
@@ -405,6 +430,30 @@ function CartaoTotal({
         {vs && ` · ${vs} vs mês anterior`}
       </p>
     </div>
+  );
+}
+
+/** Venda do sistema antigo e a diferença pro que foi apurado (só dias da planilha). */
+function CelulasSistema({ sistema, entrou }: { sistema?: number; entrou: number }) {
+  if (sistema === undefined)
+    return (
+      <>
+        <td className="px-3 py-2 text-right text-texto-suave">—</td>
+        <td className="px-3 py-2 text-right text-texto-suave">—</td>
+      </>
+    );
+  const dif = Math.round((entrou - sistema) * 100) / 100;
+  return (
+    <>
+      <td className="px-3 py-2 text-right">{brl(sistema)}</td>
+      <td
+        className={`px-3 py-2 text-right ${
+          Math.abs(dif) < 1 ? "text-texto-suave" : dif < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"
+        }`}
+      >
+        {Math.abs(dif) < 0.01 ? "—" : `${dif > 0 ? "+" : ""}${brl(dif)}`}
+      </td>
+    </>
   );
 }
 

@@ -118,6 +118,8 @@ export interface Venda {
   itens: VendaItem[];
   desconto: number;
   pagamentos: VendaPagamento[];
+  /** Entrada importada da planilha de fechamento: quanto o sistema antigo marcou de venda no dia. */
+  vendaSistema?: number;
   /** Comanda finalizada sem pagar tudo: até quando o cliente tem pra pagar. */
   vencimento?: string;
   obs?: string;

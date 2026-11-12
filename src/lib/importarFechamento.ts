@@ -17,6 +17,8 @@ export interface DiaFechamento {
   dia: string; // YYYY-MM-DD
   sistema: number;
   formas: Record<FormaPagamento, number>;
+  /** Parte do Pix que veio da coluna "PIX CNPJ" (já somada em formas.PIX). */
+  pixCnpj: number;
   /** Forma zerada que dá pra completar com a diferença pro sistema (erro de fórmula). */
   sugestao?: { forma: FormaPagamento; valor: number };
 }
@@ -31,6 +33,8 @@ export interface SaidaDinheiro {
   diaAjustado?: boolean;
   /** O que estava digitado, quando havia data. */
   diaOriginal?: string;
+  /** Conta da célula, quando o valor era uma soma (ex.: "900 + 1.172,81"). */
+  conta?: string;
 }
 
 export interface Fechamento {
@@ -71,6 +75,17 @@ function numero(v: CelulaBruta): number | null {
   return null;
 }
 
+/** "=900+1172.81" → "900 + 1.172,81" (só quando a célula é uma soma de números). */
+function contaDaCelula(v: CelulaBruta): string | undefined {
+  if (!v || typeof v !== "object" || v instanceof Date) return undefined;
+  const f = (v as { formula?: unknown }).formula;
+  if (typeof f !== "string" || !/^[\d.,+\s]+$/.test(f) || !f.includes("+")) return undefined;
+  return f
+    .split("+")
+    .map((n) => Number(n.trim()).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }))
+    .join(" + ");
+}
+
 function texto(v: CelulaBruta): string {
   const x = valor(v);
   return typeof x === "string" ? x.trim() : typeof x === "number" ? String(x) : "";
@@ -86,7 +101,7 @@ function diaDe(v: CelulaBruta): string | null {
 
 const centavos = (n: number) => Math.round(n * 100) / 100;
 const dataCurta = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
-const brlSimples = (n: number) => `R$ ${n.toFixed(2).replace(".", ",")}`;
+const brlSimples = (n: number) => `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> {
   const ExcelJS = (await import("exceljs")).default;
@@ -102,19 +117,22 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
   // ---- Fechamento diário: acha a linha do cabeçalho (DATA, VENDA SISTEMA, …)
   const dias: DiaFechamento[] = [];
   // Uma forma pode ter mais de uma coluna ("PIX" e "PIX CNPJ" somam no Pix).
-  let colunas: Partial<Record<"sistema" | FormaPagamento, number[]>> | null = null;
+  let colunas: Partial<Record<"sistema" | "cnpj" | FormaPagamento, number[]>> | null = null;
   abaFech.eachRow((row) => {
     const celulas = row.values as CelulaBruta[];
     if (!colunas) {
       if (normalizar(texto(celulas[1])) !== "data") return;
-      const achadas: Partial<Record<"sistema" | FormaPagamento, number[]>> = {};
-      const marcar = (k: "sistema" | FormaPagamento, i: number) => (achadas[k] ??= []).push(i);
+      const achadas: Partial<Record<"sistema" | "cnpj" | FormaPagamento, number[]>> = {};
+      const marcar = (k: "sistema" | "cnpj" | FormaPagamento, i: number) => (achadas[k] ??= []).push(i);
       celulas.forEach((c, i) => {
         const t = normalizar(texto(c));
         if (t.includes("sistema")) marcar("sistema", i);
         else if (t.startsWith("credito")) marcar("CREDITO", i);
         else if (t.startsWith("debito")) marcar("DEBITO", i);
-        else if (t.startsWith("pix")) marcar("PIX", i);
+        else if (t.startsWith("pix")) {
+          marcar("PIX", i);
+          if (t.includes("cnpj")) marcar("cnpj", i);
+        }
         else if (t.startsWith("dinheiro")) marcar("DINHEIRO", i);
       });
       colunas = achadas;
@@ -122,8 +140,8 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
     }
     const dia = diaDe(celulas[1]);
     if (!dia) return;
-    const col: Partial<Record<"sistema" | FormaPagamento, number[]>> = colunas;
-    const soma = (k: "sistema" | FormaPagamento) =>
+    const col: Partial<Record<"sistema" | "cnpj" | FormaPagamento, number[]>> = colunas;
+    const soma = (k: "sistema" | "cnpj" | FormaPagamento) =>
       centavos((col[k] ?? []).reduce((s, i) => s + (numero(celulas[i]) ?? 0), 0));
     const formas = {
       CREDITO: soma("CREDITO"),
@@ -139,6 +157,7 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
       dia,
       sistema,
       formas,
+      pixCnpj: soma("cnpj"),
       ...(falta > 50 && zeradas.length === 1 && { sugestao: { forma: zeradas[0], valor: falta } }),
     });
   });
@@ -189,12 +208,14 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
       const certo = lido && noPeriodo(lido) && lido >= somarDias(ultimoDia, -7) ? lido : null;
       const dia = certo ?? (lido ? consertar(lido) : ultimoDia);
       ultimoDia = dia;
+      const conta = contaDaCelula(c[3]);
       saidas.push({
         linha: n,
         dia,
         descricao: desc,
         valor: centavos(v),
         categoria: categoriaDaSaida(desc),
+        ...(conta && { conta }),
         ...(!certo && { diaAjustado: true, ...(lido && { diaOriginal: lido }) }),
       });
     });
@@ -293,7 +314,10 @@ export function montarEntradas(
       pagamentos: (Object.keys(formas) as FormaPagamento[])
         .filter((f) => formas[f] > 0)
         .map((f) => ({ id: `${id}-${f}`, forma: f, valor: formas[f], data: quando })),
-      obs: `${ORIGEM}. Venda no sistema antigo: R$ ${d.sistema.toFixed(2).replace(".", ",")}${
+      vendaSistema: d.sistema,
+      obs: `${ORIGEM}. Venda no sistema antigo: ${brlSimples(d.sistema)}${
+        d.pixCnpj > 0 ? `. Pix inclui ${brlSimples(d.pixCnpj)} do PIX CNPJ` : ""
+      }${
         d.sugestao && usarSugestao.has(d.dia)
           ? `. ${ROTULO_FORMA_FECH[d.sugestao.forma]} completado com a diferença (estava zerado na planilha)`
           : ""
@@ -320,7 +344,13 @@ export function montarSaidas(saidas: SaidaDinheiro[], lancadoPor?: string): Cont
     forma: "DINHEIRO",
     pagoPor: CAIXA_DA_LOJA,
     lancadoPor: lancadoPor ?? ORIGEM,
-    obs: ORIGEM,
+    obs: [
+      ORIGEM,
+      s.conta && `Valor na planilha: ${s.conta}`,
+      s.diaAjustado && (s.diaOriginal ? `Data na planilha: ${dataCurta(s.diaOriginal)} (corrigida)` : "Sem data na planilha"),
+    ]
+      .filter(Boolean)
+      .join(". "),
     criadoEm: agora,
   }));
 }

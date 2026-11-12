@@ -72,9 +72,10 @@ export function ImportarFechamento() {
     for (const s of dados.saidas) porCategoria.set(s.categoria, (porCategoria.get(s.categoria) ?? 0) + s.valor);
     const idsVenda = new Set(vendas.map((v) => v.id));
     const idsConta = new Set(contasPagar.map((c) => c.id));
-    const jaTinha =
-      dados.dias.filter((d) => idsVenda.has(idEntrada(d.dia))).length +
-      dados.saidas.filter((s) => idsConta.has(idSaida(s.dia, s.linha))).length;
+    const jaTinha = {
+      entradas: dados.dias.filter((d) => idsVenda.has(idEntrada(d.dia))).length,
+      saidas: dados.saidas.filter((s) => idsConta.has(idSaida(s.dia, s.linha))).length,
+    };
     return {
       porForma,
       entradas,
@@ -104,10 +105,17 @@ export function ImportarFechamento() {
       const numeroDe = (id: string) => vendas.find((v) => v.id === id)?.numero ?? proximo++;
       const quem = usuario?.email ?? undefined;
       const entradas = montarEntradas(dados.dias, completar, numeroDe, quem);
-      const saidas = montarSaidas(dados.saidas, quem);
+      // Saída que já está no sistema fica como está (pode ter sido corrigida em Gastos).
+      const idsConta = new Set(contasPagar.map((c) => c.id));
+      const saidas = montarSaidas(dados.saidas, quem).filter((c) => !idsConta.has(c.id));
+      const mantidas = dados.saidas.length - saidas.length;
       await colecao<Venda>("vendas").salvarLote(entradas);
       await colecao<ContaPagar>("contasPagar").salvarLote(saidas);
-      setFeito(`${entradas.length} dia(s) de entrada e ${saidas.length} saída(s) importados.`);
+      setFeito(
+        `${entradas.length} dia(s) de entrada e ${saidas.length} saída(s) importados${
+          mantidas ? ` (${mantidas} saída(s) já estavam e foram mantidas)` : ""
+        }.`,
+      );
       setDados(null);
     } catch {
       setErro("Não gravou. Confira a internet e tente de novo — importar de novo não duplica nada.");
@@ -183,9 +191,11 @@ export function ImportarFechamento() {
               {dados.saidas.length} saídas
             </p>
 
-            {resumo.jaTinha > 0 && (
+            {resumo.jaTinha.entradas + resumo.jaTinha.saidas > 0 && (
               <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-300">
-                {resumo.jaTinha} lançamento(s) desse período já foram importados antes — serão substituídos.
+                Parte desse período já foi importada antes: {resumo.jaTinha.entradas} dia(s) de entrada serão atualizados
+                e {resumo.jaTinha.saidas} saída(s) que já estão no sistema ficam como estão (mantém o que foi editado em
+                Gastos). Nada duplica.
               </p>
             )}
 
