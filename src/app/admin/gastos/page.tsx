@@ -715,6 +715,31 @@ function Gastos() {
             </p>
           )}
 
+          {editando?.acertadoEm && editando.pagoPor && editando.pagoPor !== CAIXA_DA_LOJA && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-superficie-2 px-3 py-2 text-sm">
+              <span className="text-texto-suave">
+                Caixa já devolveu pra {editando.pagoPor} em {dataBR(editando.acertadoEm.slice(0, 10))}.
+              </span>
+              <button
+                type="button"
+                className="shrink-0 font-semibold text-acento"
+                disabled={salvando}
+                onClick={async () => {
+                  try {
+                    await salvarContaPagar({ ...editando, acertadoEm: undefined });
+                    setEditando({ ...editando, acertadoEm: undefined });
+                    setFeito("Voltou pra lista de acerto");
+                    setTimeout(() => setFeito(""), 3000);
+                  } catch {
+                    setErro("Não salvou. Confira a internet e tente de novo.");
+                  }
+                }}
+              >
+                Desfazer acerto
+              </button>
+            </div>
+          )}
+
           <button type="submit" className="btn-primario h-12 w-full text-base" disabled={salvando || lendoFoto}>
             {salvando ? "Salvando…" : editando ? "Salvar alteração" : form.entrada ? "Lançar entrada" : "Lançar gasto"}
           </button>
