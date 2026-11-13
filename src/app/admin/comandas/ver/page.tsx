@@ -105,7 +105,7 @@ function VerComanda() {
               <div className="border-b border-borda px-4 py-3">
                 <h2 className="font-bold">Itens da comanda</h2>
               </div>
-              <ListaItens itens={c.itens} somenteLeitura />
+              <ListaItens itens={c.itens} somenteLeitura lancamentos={c.lancamentos ?? []} />
             </div>
             {daComanda.length > 0 && (
               <div className="card overflow-hidden">
@@ -177,7 +177,7 @@ function VerComanda() {
                 Adicionar
               </button>
             </div>
-            <ListaItens itens={c.itens} aoMudar={salvarItens} />
+            <ListaItens itens={c.itens} aoMudar={salvarItens} lancamentos={c.lancamentos ?? []} />
           </div>
           <div className="hidden xl:block">
             <h2 className="mb-2 text-sm font-bold">Adicionar produtos</h2>

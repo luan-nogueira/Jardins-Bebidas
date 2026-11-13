@@ -98,6 +98,17 @@ export interface VendaItem {
   fator?: number;
 }
 
+/** Cada vez que um item entra ou sai da comanda: quando, quem e quanto. */
+export interface LancamentoComanda {
+  em: string;
+  por: string;
+  produtoId: string;
+  nome: string;
+  /** Positivo = lançou; negativo = tirou. */
+  qtd: number;
+  fator?: number;
+}
+
 export interface VendaPagamento {
   id: string;
   forma: FormaPagamento;
@@ -118,6 +129,8 @@ export interface Venda {
   itens: VendaItem[];
   desconto: number;
   pagamentos: VendaPagamento[];
+  /** Histórico de itens da comanda (quem lançou o quê e quando). */
+  lancamentos?: LancamentoComanda[];
   /** Entrada importada da planilha de fechamento: quanto o sistema antigo marcou de venda no dia. */
   vendaSistema?: number;
   /** Comanda finalizada sem pagar tudo: até quando o cliente tem pra pagar. */

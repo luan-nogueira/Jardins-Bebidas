@@ -9,13 +9,14 @@ import {
   useState,
 } from "react";
 import { colecao, modoDemonstracao, novoId } from "./db";
-import { saldoVenda } from "./vendas";
+import { chaveLancamento, lancamentosDaMudanca, saldoVenda } from "./vendas";
 import { useAuth } from "./auth";
 import type {
   Cliente,
   ContaPagar,
   EstoqueMovimento,
   Fornecedor,
+  LancamentoComanda,
   Pedido,
   Produto,
   Usuario,
@@ -147,6 +148,50 @@ const removerDe =
  * pedido estivesse aberto. Isso deixava todos os aparelhos redesenhando a
  * tela sem parar (impressão e navegação lentas).
  */
+/**
+ * O que o salvarVenda precisa saber pra montar o histórico da comanda: a
+ * versão já gravada de cada venda e quem está usando o aparelho. Fica fora
+ * do React porque as ações abaixo são criadas uma vez só.
+ */
+const vivo = { vendas: new Map<string, Venda>(), quem: "Equipe" };
+
+/**
+ * Toda mudança de itens numa comanda passa por aqui (caixa, garçom, editar
+ * comanda fechada, cancelar pedido): compara com o que estava gravado e
+ * anota quem lançou/tirou o quê e quando.
+ */
+/** Toques seguidos (+ + +) da mesma pessoa no mesmo item em até 3 min viram um lançamento só. */
+function juntarLancamentos(base: LancamentoComanda[], novos: LancamentoComanda[]) {
+  const lista = [...base];
+  for (const n of novos) {
+    const i = lista.findLastIndex((l) => chaveLancamento(l) === chaveLancamento(n));
+    const ult = lista[i];
+    if (
+      ult &&
+      ult.por === n.por &&
+      Math.sign(ult.qtd) === Math.sign(n.qtd) &&
+      Date.parse(n.em) - Date.parse(ult.em) < 3 * 60_000
+    ) {
+      lista[i] = { ...ult, qtd: ult.qtd + n.qtd };
+    } else lista.push(n);
+  }
+  return lista;
+}
+
+function salvarVenda(v: Venda) {
+  let final = v;
+  if (v.tipo === "COMANDA") {
+    const antiga = vivo.vendas.get(v.id);
+    const base =
+      (antiga?.lancamentos?.length ?? 0) >= (v.lancamentos?.length ?? 0) ? antiga?.lancamentos : v.lancamentos;
+    const novos = lancamentosDaMudanca(antiga?.itens ?? [], v.itens, vivo.quem);
+    final = { ...v, ...((base || novos.length) && { lancamentos: juntarLancamentos(base ?? [], novos) }) };
+    // Dois toques seguidos (+ +) antes do banco responder: o segundo já compara com o primeiro.
+    vivo.vendas.set(v.id, final);
+  }
+  return comAviso(colecao<Venda>("vendas").salvar(final));
+}
+
 const ACOES = {
   salvarProduto: salvarEm<Produto>("produtos"),
   salvarProdutosLote: (itens: Produto[]) => comAviso(colecao<Produto>("produtos").salvarLote(itens)),
@@ -179,7 +224,7 @@ const ACOES = {
   removerCliente: removerDe("clientes"),
   salvarFornecedor: salvarEm<Fornecedor>("fornecedores"),
   removerFornecedor: removerDe("fornecedores"),
-  salvarVenda: salvarEm<Venda>("vendas"),
+  salvarVenda,
   removerVenda: removerDe("vendas"),
   salvarMovimento: salvarEm<EstoqueMovimento>("movimentos"),
   removerMovimento: removerDe("movimentos"),
@@ -195,7 +240,9 @@ export function DadosProvider({ children }: { children: React.ReactNode }) {
   const [prontas, setProntas] = useState(0);
   const marcarPronta = useCallback(() => setProntas((n) => n + 1), []);
 
-  const { usuario, exigeLogin, ehAdmin, carregando: authCarregando } = useAuth();
+  const { usuario, perfil, exigeLogin, ehAdmin, carregando: authCarregando } = useAuth();
+  // Mesmo nome que o garçom vê (useQuemSou).
+  vivo.quem = perfil?.nome || usuario?.displayName || usuario?.email?.split("@")[0] || "Equipe";
   // Só escuta coleções protegidas quando está logado (ou em modo demonstração
   // sem Firebase, onde não há autenticação — exigeLogin === false).
   const logado = !exigeLogin || !!usuario;
@@ -206,6 +253,9 @@ export function DadosProvider({ children }: { children: React.ReactNode }) {
   const clientes = useColecaoProtegida<Cliente>("clientes", marcarPronta, logado);
   const fornecedores = useColecaoProtegida<Fornecedor>("fornecedores", marcarPronta, logado);
   const vendas = useColecaoProtegida<Venda>("vendas", marcarPronta, logado);
+  useEffect(() => {
+    vivo.vendas = new Map(vendas.map((v) => [v.id, v]));
+  }, [vendas]);
   const movimentos = useColecaoProtegida<EstoqueMovimento>("movimentos", marcarPronta, logado);
   const contasPagar = useColecaoProtegida<ContaPagar>("contasPagar", marcarPronta, logado);
   const pedidos = useColecaoProtegida<Pedido>("pedidos", marcarPronta, logado);

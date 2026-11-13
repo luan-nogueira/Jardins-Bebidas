@@ -3,6 +3,7 @@ import { hojeISO, caixasEUnidades } from "./format";
 import type {
   EstoqueMovimento,
   FormaPagamento,
+  LancamentoComanda,
   Produto,
   Venda,
   VendaItem,
@@ -140,6 +141,36 @@ export function adicionarMaco(itens: VendaItem[], produto: Produto, qtd = 1): Ve
       fator: produto.unPorCaixa,
     },
   ];
+}
+
+/** Mesma "linha de produto" pro histórico: o produto, e maço separado da unidade. */
+export const chaveLancamento = (x: { produtoId: string; fator?: number }) => `${x.produtoId}|${x.fator ?? 0}`;
+
+/** O que mudou nos itens entre a versão gravada e a nova, virando lançamentos. */
+export function lancamentosDaMudanca(
+  antes: VendaItem[],
+  depois: VendaItem[],
+  por: string,
+  em = new Date().toISOString(),
+): LancamentoComanda[] {
+  const soma = (itens: VendaItem[]) => {
+    const m = new Map<string, { qtd: number; item: VendaItem }>();
+    for (const i of itens) {
+      const k = chaveLancamento(i);
+      m.set(k, { qtd: (m.get(k)?.qtd ?? 0) + i.qtd, item: i });
+    }
+    return m;
+  };
+  const a = soma(antes);
+  const d = soma(depois);
+  const saida: LancamentoComanda[] = [];
+  for (const k of new Set([...a.keys(), ...d.keys()])) {
+    const delta = (d.get(k)?.qtd ?? 0) - (a.get(k)?.qtd ?? 0);
+    if (!delta) continue;
+    const item = (d.get(k) ?? a.get(k))!.item;
+    saida.push({ em, por, produtoId: item.produtoId, nome: item.nome, qtd: delta, ...(item.fator && { fator: item.fator }) });
+  }
+  return saida;
 }
 
 export function numeroVenda(n: number): string {

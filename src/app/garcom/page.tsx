@@ -721,7 +721,7 @@ function MesaAberta({ id }: { id: string }) {
       </Modal>
 
       <Modal aberto={vendoConta} aoFechar={() => setVendoConta(false)} titulo={`Conta · ${nomeComanda(c)}`}>
-        <ListaItens itens={c.itens} somenteLeitura />
+        <ListaItens itens={c.itens} somenteLeitura lancamentos={c.lancamentos ?? []} />
         <div className="mt-3 flex items-baseline justify-between border-t border-borda pt-3">
           <span className="text-sm text-texto-suave">{pago > 0 ? "Falta pagar" : "Total"}</span>
           <span className="text-2xl font-black text-acento tabular-nums">{brl(pago > 0 ? Math.max(0, falta) : total)}</span>

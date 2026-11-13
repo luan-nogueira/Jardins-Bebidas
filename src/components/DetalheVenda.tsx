@@ -133,7 +133,11 @@ export function DetalheVenda({
           </dl>
 
           <div className="card overflow-hidden">
-            <ListaItens itens={venda.itens} somenteLeitura />
+            <ListaItens
+              itens={venda.itens}
+              somenteLeitura
+              lancamentos={venda.tipo === "COMANDA" ? (venda.lancamentos ?? []) : undefined}
+            />
           </div>
 
           <div className="space-y-1 text-sm">

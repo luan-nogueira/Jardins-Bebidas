@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { History, Minus, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { useDados, novoId } from "@/lib/store";
 import { ProdutoImagem } from "@/components/ProdutoImagem";
@@ -12,6 +12,7 @@ import {
   FORMAS,
   ROTULO_FORMA,
   baixarEstoqueVenda,
+  chaveLancamento,
   estornarEstoqueVenda,
   precoDe,
   subtotalItens,
@@ -22,6 +23,7 @@ import {
 import type {
   Cliente,
   FormaPagamento,
+  LancamentoComanda,
   Produto,
   Venda,
   VendaItem,
@@ -349,11 +351,15 @@ export function ListaItens({
   itens,
   aoMudar,
   somenteLeitura = false,
+  lancamentos,
 }: {
   itens: VendaItem[];
   aoMudar?: (itens: VendaItem[]) => void;
   somenteLeitura?: boolean;
+  /** Histórico da comanda: com ele, tocar no item mostra quando e quem lançou. */
+  lancamentos?: LancamentoComanda[];
 }) {
+  const [vendoHistorico, setVendoHistorico] = useState<VendaItem | null>(null);
   const { produtos } = useDados();
   const produtoDe = (produtoId: string) => produtos.find((p) => p.id === produtoId);
   const unPorCaixa = (produtoId: string) => produtoDe(produtoId)?.unPorCaixa ?? 1;
@@ -389,6 +395,7 @@ export function ListaItens({
   }
 
   return (
+    <>
     <ul className="divide-y divide-borda">
       {itens.map((item, i) => {
         const produtoItem = produtoDe(item.produtoId);
@@ -398,7 +405,19 @@ export function ListaItens({
         return (
         <li key={`${item.produtoId}-${i}`} className="flex items-center gap-2 px-4 py-2.5">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{item.nome}</p>
+            {lancamentos ? (
+              <button
+                type="button"
+                onClick={() => setVendoHistorico(item)}
+                className="flex max-w-full items-center gap-1 text-left text-sm font-semibold hover:text-acento"
+                title="Ver quando e quem lançou"
+              >
+                <span className="truncate">{item.nome}</span>
+                <History className="h-3.5 w-3.5 shrink-0 text-texto-suave" aria-label="Ver histórico" />
+              </button>
+            ) : (
+              <p className="truncate text-sm font-semibold">{item.nome}</p>
+            )}
             <p className="text-xs text-texto-suave tabular-nums">
               {(temRetirada || item.retirada) &&
                 (somenteLeitura || !temRetirada ? (
@@ -463,6 +482,75 @@ export function ListaItens({
         );
       })}
     </ul>
+    {lancamentos && (
+      <HistoricoItem
+        item={vendoHistorico}
+        total={vendoHistorico ? itens.filter((x) => chaveLancamento(x) === chaveLancamento(vendoHistorico)).reduce((s, x) => s + x.qtd, 0) : 0}
+        lancamentos={lancamentos}
+        aoFechar={() => setVendoHistorico(null)}
+      />
+    )}
+    </>
+  );
+}
+
+const quandoBR = (iso: string) =>
+  new Date(iso)
+    .toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    .replace(".", "");
+
+/** "15 Stella → 10 em 11/11 por Alice, 5 em 13/11 por Luiza". */
+function HistoricoItem({
+  item,
+  total,
+  lancamentos,
+  aoFechar,
+}: {
+  item: VendaItem | null;
+  total: number;
+  lancamentos: LancamentoComanda[];
+  aoFechar: () => void;
+}) {
+  const doItem = item ? lancamentos.filter((l) => chaveLancamento(l) === chaveLancamento(item)) : [];
+  // Comanda aberta antes do histórico existir: o que sobra veio sem registro.
+  const semRegistro = total - doItem.reduce((s, l) => s + l.qtd, 0);
+  return (
+    <Modal aberto={!!item} aoFechar={aoFechar} titulo={item ? item.nome : ""}>
+      {item && (
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between rounded-xl bg-superficie-2 px-4 py-3">
+            <span className="text-sm font-semibold text-texto-suave">Na comanda agora</span>
+            <span className="text-2xl font-black tabular-nums">{total}</span>
+          </div>
+          <ul className="divide-y divide-borda">
+            {semRegistro > 0 && (
+              <li className="flex items-center gap-3 py-2.5 text-sm text-texto-suave">
+                <span className="w-12 shrink-0 text-right font-black tabular-nums">+{semRegistro}</span>
+                <span>Lançado antes do histórico existir (sem data)</span>
+              </li>
+            )}
+            {doItem.map((l, i) => (
+              <li key={i} className="flex items-center gap-3 py-2.5 text-sm">
+                <span
+                  className={`w-12 shrink-0 text-right font-black tabular-nums ${l.qtd < 0 ? "text-red-600 dark:text-red-400" : "text-acento"}`}
+                >
+                  {l.qtd > 0 ? `+${l.qtd}` : l.qtd}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{quandoBR(l.em)}</span>
+                  <span className="block truncate text-xs text-texto-suave">
+                    {l.qtd < 0 ? "Tirado por" : "Lançado por"} {l.por}
+                  </span>
+                </span>
+              </li>
+            ))}
+            {doItem.length === 0 && semRegistro <= 0 && (
+              <li className="py-4 text-center text-sm text-texto-suave">Sem lançamentos registrados.</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </Modal>
   );
 }
 
