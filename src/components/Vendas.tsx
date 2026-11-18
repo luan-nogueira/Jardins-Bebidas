@@ -4,10 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { History, Minus, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { Modal } from "@/components/ui";
 import { useDados, novoId } from "@/lib/store";
-import { ProdutoImagem } from "@/components/ProdutoImagem";
 import { brl, caixasEUnidades, hojeISO, normalizar, temPalavras, paraNumero, somarDias, telefoneBR } from "@/lib/format";
 import { compararCategorias, nivelEstoque } from "@/lib/calc";
-import { COR_NIVEL, visualCategoria } from "@/lib/categoriaVisual";
+import { COR_NIVEL } from "@/lib/categoriaVisual";
 import {
   FORMAS,
   ROTULO_FORMA,
@@ -98,6 +97,7 @@ export function SeletorProdutos({
           p.codigo === busca.trim()),
     ).sort(
       (a, b) =>
+        Number(zerado(a)) - Number(zerado(b)) ||
         (popularidade.get(b.id) ?? 0) - (popularidade.get(a.id) ?? 0) ||
         a.nome.localeCompare(b.nome, "pt-BR"),
     );
@@ -181,7 +181,7 @@ export function SeletorProdutos({
           onKeyDown={aoTeclar}
         />
       </div>
-      <div className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
+      <div className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
         {["", ...categorias].map((c) => (
           <button
             key={c || "todas"}
@@ -263,6 +263,9 @@ export function ChaveRetirada({
   );
 }
 
+/** Sem estoque (e controla estoque): vai pro fim da lista, apagado. */
+const zerado = (p: Produto) => !p.semEstoque && p.estoqueUn <= 0;
+
 function CartaoProduto({
   produto: p,
   preco,
@@ -275,46 +278,28 @@ function CartaoProduto({
   toques: number;
   aoEscolher: (qtd: number) => void;
 }) {
-  const { Icone, selo } = visualCategoria(p.categoria, p.nome);
   const nivel = COR_NIVEL[nivelEstoque(p)];
   const temCaixa = p.unPorCaixa > 1;
-  const iconeCategoria = (
-    <span className={`grid h-full w-full place-items-center rounded-xl ${selo}`}>
-      <Icone className="h-5 w-5" />
-    </span>
-  );
+  const semNada = zerado(p);
 
   return (
-    <div className="card group flex flex-col overflow-hidden transition hover:border-acento">
+    <div
+      className={`card group flex flex-col overflow-hidden transition hover:border-acento ${semNada ? "opacity-55 hover:opacity-100" : ""}`}
+    >
       <button
         type="button"
         onClick={() => aoEscolher(1)}
-        className="flex flex-1 items-start gap-2.5 p-3 pb-2 text-left transition active:scale-[.97]"
+        className="flex flex-1 flex-col items-stretch gap-1 p-3 pb-1.5 text-left transition active:scale-[.97]"
         aria-label={`Adicionar 1 ${p.nome}`}
+        title={p.nome}
       >
-        <span key={toques} className={`h-11 w-11 shrink-0 ${toques ? "animate-pop" : ""}`}>
-          {p.imagemUrl ? (
-            <span className="block h-full w-full overflow-hidden rounded-xl bg-white ring-1 ring-borda">
-              <ProdutoImagem
-                src={p.imagemUrl}
-                alt=""
-                width={44}
-                height={44}
-                className="h-full w-full object-contain p-0.5"
-                fallback={iconeCategoria}
-              />
-            </span>
-          ) : (
-            iconeCategoria
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-sm leading-tight font-semibold">{p.nome}</span>
-          <span className="mt-1 block font-black text-acento tabular-nums">{brl(preco)}</span>
+        <span className="line-clamp-2 min-h-[2.5em] text-sm leading-tight font-semibold">{p.nome}</span>
+        <span key={toques} className={`block w-fit font-black text-acento tabular-nums ${toques ? "animate-pop" : ""}`}>
+          {brl(preco)}
         </span>
       </button>
 
-      <div className="flex items-center gap-2 px-3 pb-2.5">
+      <div className="flex min-h-8 items-center gap-2 px-3 pb-2">
         {p.semEstoque ? (
           <span className="min-w-0 flex-1" />
         ) : (
