@@ -6,7 +6,7 @@ const pct = (v: number, total: number) => (total > 0 ? `${((v / total) * 100).to
 /**
  * Resultado do mês, do jeito que o dono fecha a conta:
  * entrou − reposição = lucro bruto; − despesas fixas = lucro líquido.
- * Sangria (dinheiro que foi pro banco) aparece à parte, fora da conta.
+ * Sangria (dinheiro que foi pro banco) e retirada de sócio aparecem à parte, fora da conta.
  */
 export function ResultadoMes({ resultado: r }: { resultado: ReturnType<typeof resultadoDoMes> }) {
   const linha = (rotulo: string, valor: number, sinal: "" | "−" | "=", forte = false) => (
@@ -47,10 +47,12 @@ export function ResultadoMes({ resultado: r }: { resultado: ReturnType<typeof re
           </span>
         </div>
       </div>
-      {r.sangria > 0 && (
-        <p className="mt-2 text-xs text-texto-suave">
-          Sangria (depósito no banco): {brl(r.sangria)}. Não entra na conta, o dinheiro continua sendo da loja.
-        </p>
+      {(r.sangria > 0 || r.retirada > 0) && (
+        <div className="mt-2 space-y-0.5 text-xs text-texto-suave">
+          <p className="font-semibold">Fora da conta:</p>
+          {r.retirada > 0 && <p>Retirada de sócio: {brl(r.retirada)}</p>}
+          {r.sangria > 0 && <p>Sangria (depósito no banco): {brl(r.sangria)}, o dinheiro continua sendo da loja</p>}
+        </div>
       )}
     </section>
   );

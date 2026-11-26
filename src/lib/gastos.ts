@@ -39,14 +39,14 @@ import type { ContaPagar, EstoqueMovimento, FormaPagamento, Venda } from "./type
  * - REPOSICAO: compra pra revender/repor (fornecedores, carne, carvão, gelo).
  *   Entrou − reposição = lucro bruto.
  * - FIXA: despesas da casa. Lucro bruto − despesas fixas = lucro líquido.
- * - SANGRIA: dinheiro da gaveta que foi pro banco. Não é gasto, não entra na conta.
+ * - FORA: sangria pro banco e retirada de sócio. Aparecem à parte, fora do lucro.
  */
-export type GrupoDespesa = "REPOSICAO" | "FIXA" | "SANGRIA";
+export type GrupoDespesa = "REPOSICAO" | "FIXA" | "FORA";
 
 export const ROTULO_GRUPO_DESPESA: Record<GrupoDespesa, string> = {
   REPOSICAO: "Reposição (fornecedores)",
   FIXA: "Despesas fixas",
-  SANGRIA: "Sangria",
+  FORA: "Fora do lucro (sangria e retirada)",
 };
 
 export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDespesa; sugestoes?: string[] }[] = [
@@ -64,12 +64,12 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDe
   { nome: "Internet e telefone", Icone: Wifi, grupo: "FIXA" },
   { nome: "Manutenção", Icone: Wrench, grupo: "FIXA" },
   { nome: "Impostos e taxas", Icone: Receipt, grupo: "FIXA" },
-  { nome: "Retirada de sócio", Icone: HandCoins, grupo: "FIXA" },
   { nome: "Patrimônio", Icone: Landmark, grupo: "FIXA", sugestoes: ["Carro", "Caixas vazias", "Cobertura", "TV", "Toldo"] },
   { nome: "Investimento", Icone: PiggyBank, grupo: "FIXA", sugestoes: ["Consórcio"] },
   { nome: "Outros", Icone: Package, grupo: "FIXA" },
   /** Dinheiro da gaveta levado pro banco (sangria pra depósito). */
-  { nome: "Depósito no banco", Icone: Building2, grupo: "SANGRIA" },
+  { nome: "Depósito no banco", Icone: Building2, grupo: "FORA" },
+  { nome: "Retirada de sócio", Icone: HandCoins, grupo: "FORA" },
 ];
 
 export const CATEGORIA_FORNECEDOR = "Fornecedores";
@@ -120,16 +120,26 @@ export function grupoDespesa(s: Pick<Saida, "categoria" | "conta">): GrupoDespes
   return CATEGORIAS_GASTO.find((c) => c.nome === s.categoria)?.grupo ?? "FIXA";
 }
 
-/** Entrou − reposição = lucro bruto; − despesas fixas = lucro líquido. Sangria fica de fora. */
+/** Entrou − reposição = lucro bruto; − despesas fixas = lucro líquido. Sangria e retirada ficam de fora. */
 export function resultadoDoMes(entrou: number, saidas: Saida[]) {
-  const soma: Record<GrupoDespesa, number> = { REPOSICAO: 0, FIXA: 0, SANGRIA: 0 };
-  for (const s of saidas) soma[grupoDespesa(s)] += s.valor;
+  const soma: Record<GrupoDespesa, number> = { REPOSICAO: 0, FIXA: 0, FORA: 0 };
+  let sangria = 0;
+  let retirada = 0;
+  for (const s of saidas) {
+    const g = grupoDespesa(s);
+    soma[g] += s.valor;
+    if (g === "FORA") {
+      if (s.categoria === "Retirada de sócio") retirada += s.valor;
+      else sangria += s.valor;
+    }
+  }
   const lucroBruto = entrou - soma.REPOSICAO;
   return {
     entrou,
     reposicao: soma.REPOSICAO,
     fixas: soma.FIXA,
-    sangria: soma.SANGRIA,
+    sangria,
+    retirada,
     lucroBruto,
     lucroLiquido: lucroBruto - soma.FIXA,
   };

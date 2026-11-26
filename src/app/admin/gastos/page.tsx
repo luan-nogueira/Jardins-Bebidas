@@ -294,14 +294,14 @@ function Gastos() {
   const fixas = CATEGORIAS_GASTO.filter((c) => c.grupo === "FIXA");
   const escondida =
     fixas.findIndex((c) => c.nome === form.categoria) >= FIXAS_VISIVEIS ||
-    CATEGORIAS_GASTO.some((c) => c.grupo === "SANGRIA" && c.nome === form.categoria);
+    CATEGORIAS_GASTO.some((c) => c.grupo === "FORA" && c.nome === form.categoria);
   const abertas = todasCategorias || escondida;
-  const gruposNaTela = (["REPOSICAO", "FIXA", "SANGRIA"] as const)
+  const gruposNaTela = (["REPOSICAO", "FIXA", "FORA"] as const)
     .map((g) => {
       const lista = CATEGORIAS_GASTO.filter((c) => c.grupo === g);
       return { grupo: g, lista: g === "FIXA" && !abertas ? lista.slice(0, FIXAS_VISIVEIS) : lista };
     })
-    .filter((g) => g.grupo !== "SANGRIA" || abertas);
+    .filter((g) => g.grupo !== "FORA" || abertas);
 
   async function acertar() {
     if (!bolsoAberto || !selecionados.length) return;
