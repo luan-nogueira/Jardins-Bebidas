@@ -13,6 +13,7 @@ import {
   ImageIcon,
   HandCoins,
   MessageCircle,
+  Pencil,
   Plus,
   Trash2,
   X,
@@ -33,6 +34,7 @@ import {
   aAcertar,
   apagarComprovante,
   diaSaida,
+  ehGasto,
   grupoSaida,
   type FormaGasto,
   comprimirFoto,
@@ -211,20 +213,53 @@ function Gastos() {
   const [vendoGrupo, setVendoGrupo] = useState<string | null>(null);
   const detalheGrupo = useMemo(() => {
     if (!vendoGrupo) return null;
-    const mapa = new Map<string, { nome: string; total: number; lancs: { id: string; dia: string; valor: number }[] }>();
+    type Lanc = { id: string; dia: string; valor: number; forma: string; pagoPor: string; conta?: ContaPagar };
+    const mapa = new Map<string, { nome: string; total: number; lancs: Lanc[] }>();
     for (const s of saidas) {
       if (grupoSaida(s) !== vendoGrupo) continue;
       const nome = s.descricao.trim() || vendoGrupo;
       const chave = nome.toLocaleLowerCase("pt-BR");
       const item = mapa.get(chave) ?? { nome, total: 0, lancs: [] };
       item.total += s.valor;
-      item.lancs.push({ id: s.id, dia: s.dia, valor: s.valor });
+      item.lancs.push({
+        id: s.id,
+        dia: s.dia,
+        valor: s.valor,
+        forma: s.forma,
+        pagoPor: s.pagoPor,
+        conta: s.origem === "GASTO" ? s.conta : undefined,
+      });
       mapa.set(chave, item);
     }
     const itens = [...mapa.values()].sort((a, b) => b.total - a.total);
     for (const i of itens) i.lancs.sort((a, b) => a.dia.localeCompare(b.dia));
     return { itens, total: itens.reduce((s, i) => s + i.total, 0) };
   }, [vendoGrupo, saidas]);
+
+  /** Renomeando um nome do detalhe ("Carvão cesar" → "Carvão"): vale pra todos os meses. */
+  const [renomeando, setRenomeando] = useState<{ de: string; para: string; salvando?: boolean } | null>(null);
+  async function renomear() {
+    if (!renomeando || !detalheGrupo) return;
+    const para = renomeando.para.trim();
+    const item = detalheGrupo.itens.find((i) => i.nome === renomeando.de);
+    if (!para || !item) return;
+    // Mesmas categorias dos lançamentos desse nome; pega os de todos os meses.
+    const categorias = new Set(item.lancs.map((l) => l.conta?.categoria).filter(Boolean));
+    const antigo = renomeando.de.toLocaleLowerCase("pt-BR");
+    const alvo = contasPagar.filter(
+      (c) =>
+        ehGasto(c) &&
+        categorias.has(c.categoria) &&
+        (c.descricao.trim() || c.categoria || "").toLocaleLowerCase("pt-BR") === antigo,
+    );
+    setRenomeando({ ...renomeando, salvando: true });
+    try {
+      await Promise.all(alvo.map((c) => salvarContaPagar({ ...c, descricao: para })));
+      setRenomeando(null);
+    } catch {
+      setRenomeando({ ...renomeando, salvando: false });
+    }
+  }
 
   /** Descrições já usadas na categoria escolhida, pra repetir o nome igual (ex.: funcionário). */
   const sugestoesDescricao = useMemo(() => {
@@ -235,6 +270,20 @@ function Gastos() {
       if (c.categoria === form.categoria && c.descricao && c.descricao !== c.categoria)
         nomes.set(c.descricao.trim().toLocaleLowerCase("pt-BR"), c.descricao.trim());
     return [...nomes.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [contasPagar, form.categoria]);
+
+  /** Os nomes mais usados na categoria, como atalho (evita "Carvão" e "Carvão cesar" pro mesmo fornecedor). */
+  const maisUsadas = useMemo(() => {
+    const conta = new Map<string, { nome: string; n: number }>();
+    for (const c of contasPagar) {
+      if (c.categoria !== form.categoria || !c.descricao?.trim() || c.descricao === c.categoria) continue;
+      const nome = c.descricao.trim();
+      const k = nome.toLocaleLowerCase("pt-BR");
+      const e = conta.get(k) ?? { nome, n: 0 };
+      e.n++;
+      conta.set(k, e);
+    }
+    return [...conta.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((e) => e.nome);
   }, [contasPagar, form.categoria]);
 
   // As do dia a dia ficam à mostra; as do mês (aluguel, luz…) atrás de "Ver todas".
@@ -647,6 +696,25 @@ function Gastos() {
                 <option key={n} value={n} />
               ))}
             </datalist>
+            {!form.entrada && maisUsadas.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {maisUsadas.map((n) => {
+                  const igual = n.toLocaleLowerCase("pt-BR") === form.descricao.trim().toLocaleLowerCase("pt-BR");
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setForm({ ...form, descricao: n })}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        igual ? "bg-acento text-acento-texto" : "border border-borda text-texto-suave hover:bg-superficie-2"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>
@@ -951,7 +1019,13 @@ function Gastos() {
         </div>
       </div>
 
-      <Modal aberto={!!detalheGrupo} aoFechar={() => setVendoGrupo(null)} titulo={`${vendoGrupo ?? ""} · ${nomeMes(mes)}`}>
+      <Modal
+        aberto={!!detalheGrupo}
+        aoFechar={() => {
+          setVendoGrupo(null);
+          setRenomeando(null);
+        }}
+        titulo={`${vendoGrupo ?? ""} · ${nomeMes(mes)}`}>
         {detalheGrupo && (
           <div className="space-y-3">
             <div className="flex items-baseline justify-between rounded-xl bg-superficie-2 px-4 py-3">
@@ -967,12 +1041,89 @@ function Gastos() {
                       <span className="block text-xs text-texto-suave">{i.lancs.length} lanç.</span>
                     </span>
                     <span className="font-bold tabular-nums">{brl(i.total)}</span>
+                    {i.lancs.some((l) => l.conta) && renomeando?.de !== i.nome && (
+                      <button
+                        type="button"
+                        onClick={() => setRenomeando({ de: i.nome, para: "" })}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-texto-suave hover:bg-superficie-2"
+                        aria-label={`Renomear ou juntar ${i.nome}`}
+                        title="Renomear ou juntar com outro nome"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
+                  {renomeando?.de === i.nome && (
+                    <div className="mt-2 space-y-2 rounded-xl bg-superficie-2 p-3">
+                      <p className="text-xs text-texto-suave">
+                        Juntar com outro nome ou escrever o nome certo. Muda todos os lançamentos “{i.nome}”, de todos os
+                        meses.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {detalheGrupo.itens
+                          .filter((o) => o.nome !== i.nome)
+                          .map((o) => (
+                            <button
+                              key={o.nome}
+                              type="button"
+                              onClick={() => setRenomeando({ ...renomeando, para: o.nome })}
+                              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                                renomeando.para === o.nome
+                                  ? "bg-acento text-acento-texto"
+                                  : "border border-borda bg-superficie text-texto-suave"
+                              }`}
+                            >
+                              {o.nome}
+                            </button>
+                          ))}
+                      </div>
+                      <input
+                        className="campo h-10 text-base"
+                        placeholder="Nome certo"
+                        value={renomeando.para}
+                        onChange={(e) => setRenomeando({ ...renomeando, para: e.target.value })}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="btn-secundario flex-1"
+                          onClick={() => setRenomeando(null)}
+                          disabled={renomeando.salvando}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primario flex-1"
+                          onClick={renomear}
+                          disabled={!renomeando.para.trim() || renomeando.salvando}
+                        >
+                          {renomeando.salvando ? "Salvando…" : "Salvar"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <ul className="mt-1.5 space-y-0.5 border-l-2 border-borda pl-3 text-xs text-texto-suave">
                     {i.lancs.map((l) => (
-                      <li key={l.id} className="flex justify-between tabular-nums">
-                        <span>{dataBR(l.dia).slice(0, 5)}</span>
-                        <span>{brl(l.valor)}</span>
+                      <li key={l.id}>
+                        <button
+                          type="button"
+                          disabled={!l.conta}
+                          onClick={() => {
+                            if (!l.conta) return;
+                            setVendoGrupo(null);
+                            editar(l.conta);
+                          }}
+                          className="flex w-full items-center gap-2 rounded py-0.5 text-left tabular-nums enabled:hover:text-texto"
+                        >
+                          <span className="w-10 shrink-0">{dataBR(l.dia).slice(0, 5)}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {[l.forma || "—", l.pagoPor !== CAIXA_DA_LOJA && `pago por ${l.pagoPor}`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                          <span>{brl(l.valor)}</span>
+                        </button>
                       </li>
                     ))}
                   </ul>
