@@ -21,7 +21,7 @@ import { BarrasHorizontais, CartaoGrafico, SemDados } from "@/components/Grafico
 import { useDados } from "@/lib/store";
 import { brl, dataBR, hojeISO } from "@/lib/format";
 import { FORMAS, ROTULO_FORMA, diaLocal } from "@/lib/vendas";
-import { CAIXA_DA_LOJA, entradasDoMes, grupoSaida, nomeMes, resultadoDoMes, saidasDoMes } from "@/lib/gastos";
+import { CAIXA_DA_LOJA, entradasDoMes, grupoSaida, nomeMes, bafoVendidoNoMes, resultadoDoMes, saidasDoMes } from "@/lib/gastos";
 import { ResultadoMes } from "@/components/ResultadoMes";
 import type { FormaPagamento } from "@/lib/types";
 
@@ -242,7 +242,7 @@ function Fluxo() {
           />
         </div>
 
-        <ResultadoMes resultado={resultadoDoMes(entrou, saidas)} />
+        <ResultadoMes resultado={resultadoDoMes(entrou, saidas, bafoVendidoNoMes(mes, vendas))} />
 
         {/* Uma caixinha por forma de recebimento */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

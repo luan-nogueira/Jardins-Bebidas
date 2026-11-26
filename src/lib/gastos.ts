@@ -39,14 +39,14 @@ import type { ContaPagar, EstoqueMovimento, FormaPagamento, Venda } from "./type
  * - REPOSICAO: compra pra revender/repor (fornecedores, carne, carvão, gelo).
  *   Entrou − reposição = lucro bruto.
  * - FIXA: despesas da casa. Lucro bruto − despesas fixas = lucro líquido.
- * - FORA: sangria pro banco e retirada de sócio. Aparecem à parte, fora do lucro.
+ * - FORA: sangria pro banco, retirada de sócio e repasse do Bafo. Aparecem à parte, fora do lucro.
  */
 export type GrupoDespesa = "REPOSICAO" | "FIXA" | "FORA";
 
 export const ROTULO_GRUPO_DESPESA: Record<GrupoDespesa, string> = {
   REPOSICAO: "Reposição (fornecedores)",
   FIXA: "Despesas fixas",
-  FORA: "Fora do lucro (sangria e retirada)",
+  FORA: "Fora do lucro (sangria, retirada, Bafo)",
 };
 
 export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDespesa; sugestoes?: string[] }[] = [
@@ -70,6 +70,8 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDe
   /** Dinheiro da gaveta levado pro banco (sangria pra depósito). */
   { nome: "Depósito no banco", Icone: Building2, grupo: "FORA" },
   { nome: "Retirada de sócio", Icone: HandCoins, grupo: "FORA" },
+  /** Repasse do Bafo: o churrasco é de outra pessoa, passa pelo caixa e é repassado inteiro. */
+  { nome: "Bafo (repasse)", Icone: Flame, grupo: "FORA" },
 ];
 
 export const CATEGORIA_FORNECEDOR = "Fornecedores";
@@ -120,22 +122,51 @@ export function grupoDespesa(s: Pick<Saida, "categoria" | "conta">): GrupoDespes
   return CATEGORIAS_GASTO.find((c) => c.nome === s.categoria)?.grupo ?? "FIXA";
 }
 
-/** Entrou − reposição = lucro bruto; − despesas fixas = lucro líquido. Sangria e retirada ficam de fora. */
-export function resultadoDoMes(entrou: number, saidas: Saida[]) {
+export const CATEGORIA_BAFO = "Bafo (repasse)";
+
+/** Item do Bafo (churrasco de terceiro): pelo nome do produto. */
+export const ehItemBafo = (nome: string) => /\bbafo\b/i.test(nome);
+
+/** Quanto do Bafo foi vendido no sistema no mês (itens das vendas fechadas). */
+export function bafoVendidoNoMes(mes: string, vendas: Venda[]): number {
+  let total = 0;
+  for (const v of vendas) {
+    if (v.status !== "FINALIZADA" || !v.finalizadaEm || !diaLocal(v.finalizadaEm).startsWith(mes)) continue;
+    for (const i of v.itens) if (ehItemBafo(i.nome)) total += i.qtd * i.precoUn;
+  }
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Entrou − Bafo = venda da loja; − reposição = lucro bruto; − despesas fixas = lucro líquido.
+ * Sangria e retirada ficam de fora. O Bafo é de outra pessoa: o que foi repassado
+ * sai da venda (vendeu X, repassou X), então não mexe no lucro da loja.
+ */
+export function resultadoDoMes(entrou: number, saidas: Saida[], bafoVendido = 0) {
   const soma: Record<GrupoDespesa, number> = { REPOSICAO: 0, FIXA: 0, FORA: 0 };
   let sangria = 0;
   let retirada = 0;
+  let bafoRepassado = 0;
   for (const s of saidas) {
     const g = grupoDespesa(s);
     soma[g] += s.valor;
     if (g === "FORA") {
       if (s.categoria === "Retirada de sócio") retirada += s.valor;
+      else if (s.categoria === CATEGORIA_BAFO) bafoRepassado += s.valor;
       else sangria += s.valor;
     }
   }
-  const lucroBruto = entrou - soma.REPOSICAO;
+  // Nas planilhas o Bafo vem misturado no total do dia: aí o repasse é a melhor
+  // medida do que ele vendeu. Com venda no sistema, usa o maior dos dois.
+  const bafo = Math.max(bafoVendido, bafoRepassado);
+  const vendaLoja = entrou - bafo;
+  const lucroBruto = vendaLoja - soma.REPOSICAO;
   return {
     entrou,
+    bafo,
+    bafoVendido,
+    bafoRepassado,
+    vendaLoja,
     reposicao: soma.REPOSICAO,
     fixas: soma.FIXA,
     sangria,

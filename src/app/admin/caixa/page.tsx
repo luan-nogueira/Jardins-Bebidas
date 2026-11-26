@@ -46,6 +46,7 @@ const MOTIVOS_SANGRIA = [
   { rotulo: "Pagar funcionário", categoria: "Funcionários" },
   { rotulo: "Depósito no banco", categoria: "Depósito no banco" },
   { rotulo: "Retirada do dono", categoria: "Retirada de sócio" },
+  { rotulo: "Repasse do Bafo", categoria: "Bafo (repasse)" },
   { rotulo: "Outro", categoria: "Outros" },
 ];
 

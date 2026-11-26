@@ -243,6 +243,7 @@ const REGRAS: [RegExp, string][] = [
   // Sangria pra depositar = dinheiro da gaveta indo pro banco, não pro sócio.
   [/sangria.*deposit|deposito/, "Depósito no banco"],
   [/sangria|retirada/, "Retirada de sócio"],
+  [/bafo/, "Bafo (repasse)"],
   [/investimento|cofre/, "Investimento"],
   [/material de limpeza|produto de limpeza/, "Limpeza"],
   [/carne|torresmo/, "Carnes"],

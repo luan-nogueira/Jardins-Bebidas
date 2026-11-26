@@ -45,6 +45,7 @@ import {
   exportarPrestacaoContas,
   iconeGasto,
   nomeMes,
+  bafoVendidoNoMes,
   resultadoDoMes,
   saidasDoMes,
   type Saida,
@@ -880,7 +881,7 @@ function Gastos() {
             <Metrica rotulo="Saldo" valor={brl(totalEntrou - totalSaiu)} destaque />
           </div>
 
-          <ResultadoMes resultado={resultadoDoMes(totalEntrou, saidas)} />
+          <ResultadoMes resultado={resultadoDoMes(totalEntrou, saidas, bafoVendidoNoMes(mes, vendas))} />
 
           <div className="flex flex-wrap gap-2">
             <button
