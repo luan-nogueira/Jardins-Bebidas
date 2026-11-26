@@ -87,7 +87,7 @@ interface Formulario {
 }
 
 /** Quantas categorias aparecem antes do "Ver todas" (3 fileiras de 3 com o botão). */
-const CATEGORIAS_VISIVEIS = 8;
+const CATEGORIAS_VISIVEIS = 9;
 
 const novoForm = (): Formulario => ({
   entrada: false,

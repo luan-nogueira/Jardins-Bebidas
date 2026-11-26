@@ -1,6 +1,7 @@
 import {
   Beef,
   Building2,
+  Flame,
   Fuel,
   HandCoins,
   Home,
@@ -38,7 +39,8 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; sugestoes?: st
   { nome: "Mantimentos", Icone: ShoppingBasket },
   { nome: "Carnes", Icone: Beef },
   { nome: "Gelo", Icone: Snowflake },
-  { nome: "Carvão e gás", Icone: Fuel },
+  { nome: "Carvão", Icone: Flame },
+  { nome: "Combustível", Icone: Fuel, sugestoes: ["Combustível Strada", "Bujão de gás"] },
   { nome: "Descartáveis", Icone: PackageOpen },
   { nome: "Limpeza", Icone: Sparkles },
   { nome: "Funcionários", Icone: Users },
