@@ -34,27 +34,42 @@ import type { ContaPagar, EstoqueMovimento, FormaPagamento, Venda } from "./type
  * Mercadoria pra revenda NÃO entra aqui: vai por Entradas, que dá entrada
  * no estoque. A prestação de contas soma as duas coisas.
  */
-export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; sugestoes?: string[] }[] = [
-  { nome: "Fornecedores", Icone: Truck },
-  { nome: "Mantimentos", Icone: ShoppingBasket },
-  { nome: "Carnes", Icone: Beef },
-  { nome: "Gelo", Icone: Snowflake },
-  { nome: "Carvão", Icone: Flame },
-  { nome: "Combustível", Icone: Fuel, sugestoes: ["Combustível Strada", "Bujão de gás"] },
-  { nome: "Descartáveis", Icone: PackageOpen },
-  { nome: "Limpeza", Icone: Sparkles },
-  { nome: "Funcionários", Icone: Users },
-  { nome: "Aluguel", Icone: Home },
-  { nome: "Luz e água", Icone: Lightbulb },
-  { nome: "Internet e telefone", Icone: Wifi },
-  { nome: "Manutenção", Icone: Wrench },
-  { nome: "Impostos e taxas", Icone: Receipt },
-  { nome: "Retirada de sócio", Icone: HandCoins },
-  { nome: "Patrimônio", Icone: Landmark, sugestoes: ["Carro", "Caixas vazias", "Cobertura", "TV", "Toldo"] },
-  { nome: "Investimento", Icone: PiggyBank, sugestoes: ["Consórcio"] },
+/**
+ * Grupo de cada gasto pro resultado do mês:
+ * - REPOSICAO: compra pra revender/repor (fornecedores, carne, carvão, gelo).
+ *   Entrou − reposição = lucro bruto.
+ * - FIXA: despesas da casa. Lucro bruto − despesas fixas = lucro líquido.
+ * - SANGRIA: dinheiro da gaveta que foi pro banco. Não é gasto, não entra na conta.
+ */
+export type GrupoDespesa = "REPOSICAO" | "FIXA" | "SANGRIA";
+
+export const ROTULO_GRUPO_DESPESA: Record<GrupoDespesa, string> = {
+  REPOSICAO: "Reposição (fornecedores)",
+  FIXA: "Despesas fixas",
+  SANGRIA: "Sangria",
+};
+
+export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDespesa; sugestoes?: string[] }[] = [
+  { nome: "Fornecedores", Icone: Truck, grupo: "REPOSICAO" },
+  { nome: "Carnes", Icone: Beef, grupo: "REPOSICAO" },
+  { nome: "Carvão", Icone: Flame, grupo: "REPOSICAO" },
+  { nome: "Gelo", Icone: Snowflake, grupo: "REPOSICAO" },
+  { nome: "Mantimentos", Icone: ShoppingBasket, grupo: "FIXA" },
+  { nome: "Gás e combustível", Icone: Fuel, grupo: "FIXA", sugestoes: ["Gás de cozinha", "Combustível Strada"] },
+  { nome: "Descartáveis", Icone: PackageOpen, grupo: "FIXA" },
+  { nome: "Limpeza", Icone: Sparkles, grupo: "FIXA" },
+  { nome: "Funcionários", Icone: Users, grupo: "FIXA" },
+  { nome: "Aluguel", Icone: Home, grupo: "FIXA" },
+  { nome: "Luz e água", Icone: Lightbulb, grupo: "FIXA" },
+  { nome: "Internet e telefone", Icone: Wifi, grupo: "FIXA" },
+  { nome: "Manutenção", Icone: Wrench, grupo: "FIXA" },
+  { nome: "Impostos e taxas", Icone: Receipt, grupo: "FIXA" },
+  { nome: "Retirada de sócio", Icone: HandCoins, grupo: "FIXA" },
+  { nome: "Patrimônio", Icone: Landmark, grupo: "FIXA", sugestoes: ["Carro", "Caixas vazias", "Cobertura", "TV", "Toldo"] },
+  { nome: "Investimento", Icone: PiggyBank, grupo: "FIXA", sugestoes: ["Consórcio"] },
+  { nome: "Outros", Icone: Package, grupo: "FIXA" },
   /** Dinheiro da gaveta levado pro banco (sangria pra depósito). */
-  { nome: "Depósito no banco", Icone: Building2 },
-  { nome: "Outros", Icone: Package },
+  { nome: "Depósito no banco", Icone: Building2, grupo: "SANGRIA" },
 ];
 
 export const CATEGORIA_FORNECEDOR = "Fornecedores";
@@ -98,6 +113,27 @@ export function grupoSaida(s: Pick<Saida, "categoria" | "fornecedor">): string {
 
 /** Categoria das compras de mercadoria à vista (Entradas) na prestação de contas. */
 export const CATEGORIA_MERCADORIA = "Mercadoria (Entradas)";
+
+/** Reposição, despesa fixa ou sangria. Compra de mercadoria (Entradas) é reposição. */
+export function grupoDespesa(s: Pick<Saida, "categoria" | "conta">): GrupoDespesa {
+  if (s.categoria === CATEGORIA_MERCADORIA || s.conta?.compraId) return "REPOSICAO";
+  return CATEGORIAS_GASTO.find((c) => c.nome === s.categoria)?.grupo ?? "FIXA";
+}
+
+/** Entrou − reposição = lucro bruto; − despesas fixas = lucro líquido. Sangria fica de fora. */
+export function resultadoDoMes(entrou: number, saidas: Saida[]) {
+  const soma: Record<GrupoDespesa, number> = { REPOSICAO: 0, FIXA: 0, SANGRIA: 0 };
+  for (const s of saidas) soma[grupoDespesa(s)] += s.valor;
+  const lucroBruto = entrou - soma.REPOSICAO;
+  return {
+    entrou,
+    reposicao: soma.REPOSICAO,
+    fixas: soma.FIXA,
+    sangria: soma.SANGRIA,
+    lucroBruto,
+    lucroLiquido: lucroBruto - soma.FIXA,
+  };
+}
 
 export function iconeGasto(categoria: string): LucideIcon {
   return CATEGORIAS_GASTO.find((c) => c.nome === categoria)?.Icone ?? Package;

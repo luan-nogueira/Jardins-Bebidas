@@ -42,7 +42,7 @@ const MOTIVOS_SANGRIA = [
   { rotulo: "Pagar fornecedor", categoria: "Fornecedores" },
   { rotulo: "Gelo", categoria: "Gelo" },
   { rotulo: "Carvão", categoria: "Carvão" },
-  { rotulo: "Combustível / gás", categoria: "Combustível" },
+  { rotulo: "Gás e combustível", categoria: "Gás e combustível" },
   { rotulo: "Pagar funcionário", categoria: "Funcionários" },
   { rotulo: "Depósito no banco", categoria: "Depósito no banco" },
   { rotulo: "Retirada do dono", categoria: "Retirada de sócio" },

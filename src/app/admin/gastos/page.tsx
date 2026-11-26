@@ -31,6 +31,7 @@ import {
   FORMAS_GASTO,
   FORNECEDORES_BOLETO,
   ROTULO_FORMA_GASTO,
+  ROTULO_GRUPO_DESPESA,
   aAcertar,
   apagarComprovante,
   diaSaida,
@@ -44,9 +45,11 @@ import {
   exportarPrestacaoContas,
   iconeGasto,
   nomeMes,
+  resultadoDoMes,
   saidasDoMes,
   type Saida,
 } from "@/lib/gastos";
+import { ResultadoMes } from "@/components/ResultadoMes";
 import { FORMAS } from "@/lib/vendas";
 import { novaVenda } from "@/components/Vendas";
 import type { ContaPagar, FormaPagamento } from "@/lib/types";
@@ -86,8 +89,8 @@ interface Formulario {
   fotoMudou?: boolean;
 }
 
-/** Quantas categorias aparecem antes do "Ver todas" (3 fileiras de 3 com o botão). */
-const CATEGORIAS_VISIVEIS = 9;
+/** Quantas despesas fixas aparecem antes do "Ver todas" (2 fileiras de 3 com o botão). */
+const FIXAS_VISIVEIS = 5;
 
 const novoForm = (): Formulario => ({
   entrada: false,
@@ -288,9 +291,17 @@ function Gastos() {
 
   // As do dia a dia ficam à mostra; as do mês (aluguel, luz…) atrás de "Ver todas".
   // Ao editar um gasto de categoria escondida, abre tudo pra ela aparecer marcada.
-  const escondida = CATEGORIAS_GASTO.findIndex((c) => c.nome === form.categoria) >= CATEGORIAS_VISIVEIS;
-  const categoriasNaTela =
-    todasCategorias || escondida ? CATEGORIAS_GASTO : CATEGORIAS_GASTO.slice(0, CATEGORIAS_VISIVEIS);
+  const fixas = CATEGORIAS_GASTO.filter((c) => c.grupo === "FIXA");
+  const escondida =
+    fixas.findIndex((c) => c.nome === form.categoria) >= FIXAS_VISIVEIS ||
+    CATEGORIAS_GASTO.some((c) => c.grupo === "SANGRIA" && c.nome === form.categoria);
+  const abertas = todasCategorias || escondida;
+  const gruposNaTela = (["REPOSICAO", "FIXA", "SANGRIA"] as const)
+    .map((g) => {
+      const lista = CATEGORIAS_GASTO.filter((c) => c.grupo === g);
+      return { grupo: g, lista: g === "FIXA" && !abertas ? lista.slice(0, FIXAS_VISIVEIS) : lista };
+    })
+    .filter((g) => g.grupo !== "SANGRIA" || abertas);
 
   async function acertar() {
     if (!bolsoAberto || !selecionados.length) return;
@@ -579,8 +590,11 @@ function Gastos() {
           {!form.entrada && (
           <div>
             <span className="rotulo">Com o quê?</span>
+            {gruposNaTela.map(({ grupo, lista }) => (
+            <div key={grupo} className="mb-2 last:mb-0">
+            <p className="mb-1 text-[11px] font-semibold text-texto-suave">{ROTULO_GRUPO_DESPESA[grupo]}</p>
             <div className="grid grid-cols-3 gap-1.5">
-              {categoriasNaTela.map(({ nome, Icone }) => {
+              {lista.map(({ nome, Icone }) => {
                 const ativo = form.categoria === nome;
                 return (
                   <button
@@ -605,7 +619,7 @@ function Gastos() {
                   </button>
                 );
               })}
-              {!escondida && (
+              {grupo === "FIXA" && !escondida && (
                 <button
                   type="button"
                   onClick={() => setTodasCategorias((v) => !v)}
@@ -623,6 +637,8 @@ function Gastos() {
                 </button>
               )}
             </div>
+            </div>
+            ))}
           </div>
           )}
 
@@ -863,6 +879,8 @@ function Gastos() {
             <Metrica rotulo="Saiu" valor={brl(totalSaiu)} detalhe={`${saidas.length} lançamento(s)`} />
             <Metrica rotulo="Saldo" valor={brl(totalEntrou - totalSaiu)} destaque />
           </div>
+
+          <ResultadoMes resultado={resultadoDoMes(totalEntrou, saidas)} />
 
           <div className="flex flex-wrap gap-2">
             <button

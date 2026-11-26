@@ -248,7 +248,7 @@ const REGRAS: [RegExp, string][] = [
   [/carne|torresmo/, "Carnes"],
   [/gelo|gelito/, "Gelo"],
   [/carvao/, "Carvão"],
-  [/bujao|\bgas\b|combustiv|gasolina/, "Combustível"],
+  [/bujao|\bgas\b|combustiv|gasolina/, "Gás e combustível"],
   [/descartav|palito/, "Descartáveis"],
   [/imposto|\bmei\b|taxa/, "Impostos e taxas"],
   [/\bnotas?\b|boleto|itaipava|unibeer|uniber|ambev|bebidas/, "Fornecedores"],
