@@ -77,7 +77,7 @@ export function ResultadoMes({ resultado: r }: { resultado: ReturnType<typeof re
         <div className="mt-2 space-y-0.5 text-xs text-texto-suave">
           <p className="font-semibold">Fora da conta:</p>
           {r.retirada > 0 && <p>Retirada de sócio: {brl(r.retirada)}</p>}
-          {r.sangria > 0 && <p>Sangria (depósito no banco): {brl(r.sangria)}, o dinheiro continua sendo da loja</p>}
+          {r.sangria > 0 && <p>Sangria depositada: {brl(r.sangria)}, o dinheiro continua sendo da loja</p>}
         </div>
       )}
     </section>

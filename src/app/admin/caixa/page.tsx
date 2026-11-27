@@ -44,7 +44,7 @@ const MOTIVOS_SANGRIA = [
   { rotulo: "Carvão", categoria: "Carvão" },
   { rotulo: "Gás e combustível", categoria: "Gás e combustível" },
   { rotulo: "Pagar funcionário", categoria: "Funcionários" },
-  { rotulo: "Depósito no banco", categoria: "Depósito no banco" },
+  { rotulo: "Sangria depositada", categoria: "Sangria depositada" },
   { rotulo: "Retirada do dono", categoria: "Retirada de sócio" },
   { rotulo: "Repasse do Bafo", categoria: "Bafo (repasse)" },
   { rotulo: "Outro", categoria: "Outros" },

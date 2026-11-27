@@ -240,9 +240,9 @@ export async function lerPlanilhaFechamento(arquivo: File): Promise<Fechamento> 
    --------------------------------------------------------------------------- */
 
 const REGRAS: [RegExp, string][] = [
-  // Sangria pra depositar = dinheiro da gaveta indo pro banco, não pro sócio.
-  [/sangria.*deposit|deposito/, "Depósito no banco"],
-  [/sangria|retirada/, "Retirada de sócio"],
+  // Sangria = dinheiro da gaveta depositado no banco (o Nilo confirmou). Retirada é do sócio.
+  [/sangria|deposit/, "Sangria depositada"],
+  [/retirada/, "Retirada de sócio"],
   [/bafo/, "Bafo (repasse)"],
   [/investimento|cofre/, "Investimento"],
   [/material de limpeza|produto de limpeza/, "Limpeza"],

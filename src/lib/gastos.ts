@@ -68,7 +68,7 @@ export const CATEGORIAS_GASTO: { nome: string; Icone: LucideIcon; grupo: GrupoDe
   { nome: "Investimento", Icone: PiggyBank, grupo: "FIXA", sugestoes: ["Consórcio"] },
   { nome: "Outros", Icone: Package, grupo: "FIXA" },
   /** Dinheiro da gaveta levado pro banco (sangria pra depósito). */
-  { nome: "Depósito no banco", Icone: Building2, grupo: "FORA" },
+  { nome: "Sangria depositada", Icone: Building2, grupo: "FORA" },
   { nome: "Retirada de sócio", Icone: HandCoins, grupo: "FORA" },
   /** Repasse do Bafo: o churrasco é de outra pessoa, passa pelo caixa e é repassado inteiro. */
   { nome: "Bafo (repasse)", Icone: Flame, grupo: "FORA" },
